@@ -2,7 +2,7 @@
 
 ## MP_Inventory - Multiplayer Inventory Plugin for Unreal Engine
 
-**MP_Inventory** is a powerful multiplayer-ready inventory system for Unreal Engine, built with full replication support. It allows storing, managing, and sharing items with a robust tag system, private/public access control, and persistent item data. Designed to simplify multiplayer item management, it's highly modular, extendable, and open-source.
+  MP_Inventory is a powerful multiplayer-ready inventory system for Unreal Engine, built with full replication support. It allows storing, managing, and sharing items with a robust tag system, private/public access control, and persistent item data. Designed to simplify multiplayer item management, it's highly modular, extendable, and open-source.
 
 ---
 
