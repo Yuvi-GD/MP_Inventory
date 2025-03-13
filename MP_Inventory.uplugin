@@ -1,0 +1,31 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "MP_Inventory",
+	"Description": "Multplayer Ready Advance Inventory System",
+	"Category": "UV_Plugins",
+	"CreatedBy": "Yuvi_GD",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": true,
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "MP_Inventory",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Dependencies": [
+		{
+			"Name": "GameplayTags",
+			"Enabled": true
+		}
+	]
+}
