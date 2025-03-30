@@ -55,10 +55,15 @@
    - Restart the engine if prompted.
 
 # 🛠 Usage
+
 1️⃣ Attach **MP_InventoryComponent** to Player Characters.
+
 2️⃣ Set up **MP_ItemDefinitionStorage** to define items.
+
 3️⃣ Use **MP_TradingManager** for secure trades.
+
 4️⃣ Utilize **MP_TradeExchange** for listing items.
+
 5️⃣ Access inventory and trading functions in Blueprints.
 
 ---
