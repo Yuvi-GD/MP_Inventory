@@ -14,3 +14,14 @@ FMP_InventoryStruct::FMP_InventoryStruct()
 FMP_InventoryStruct::~FMP_InventoryStruct()
 {
 }
+
+FMP_ItemDefinition::FMP_ItemDefinition()
+{
+    ItemID = FName();
+    DisplayName = TEXT("");
+    Icon = nullptr;
+}
+
+FMP_ItemDefinition::~FMP_ItemDefinition()
+{
+}

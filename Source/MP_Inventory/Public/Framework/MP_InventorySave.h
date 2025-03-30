@@ -17,6 +17,7 @@ class MP_INVENTORY_API UMP_InventorySave : public USaveGame
 	
 public:
 
+
     UPROPERTY(BlueprintReadWrite, Category = "MP_Inventory|Save")
     TArray<FMP_InventoryStruct> InventoryItems;
 

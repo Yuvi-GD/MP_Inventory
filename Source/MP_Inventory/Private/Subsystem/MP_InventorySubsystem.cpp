@@ -3,25 +3,25 @@
 
 #include "Subsystem/MP_InventorySubsystem.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/SaveGame.h"
-//#include "Templates/SoftObjectPtr.h"
 #include "Framework/MP_InventorySave.h"
 
 void UMP_InventorySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
-    LoadInventory();
+    LoadInventory(DefaultSlotName);
     UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::Initialize - InventoryItems.Num(): %d"), InventoryItems.Num());
 }
 
 void UMP_InventorySubsystem::Deinitialize()
 {
-    SaveInventory();
+    SaveInventory(DefaultSlotName);
     Super::Deinitialize();
 }
 
 void UMP_InventorySubsystem::AddItem(FMP_InventoryStruct Item)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::AddItem - ItemID: %s, Quantity: %d"), *Item.ItemID.ToString(), Item.Quantity);
 
     if (Item.ItemID.IsNone() || Item.Quantity <= 0)
@@ -30,32 +30,43 @@ void UMP_InventorySubsystem::AddItem(FMP_InventoryStruct Item)
         return;
     }
 
+    // Add Item.Public tag by default if not already present
+    if (!Item.Tags.HasTag(FGameplayTag::RequestGameplayTag("Item.Public")))
+    {
+        Item.Tags.AddTag(FGameplayTag::RequestGameplayTag("Item.Public"));
+    }
+
+
     for (FMP_InventoryStruct& ExistingItem : InventoryItems)
     {
         if (ExistingItem.ItemID == Item.ItemID)
         {
             ExistingItem.Quantity += Item.Quantity;
+            bIsProcessingServerChange = false;
             OnInventoryUpdated.Broadcast();
             UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::AddItem - Stacked item. New Quantity: %d"), ExistingItem.Quantity);
             if (bAutoSave)
             {
-                SaveInventory();
+                SaveInventory(DefaultSlotName);
             }
             return;
         }
     }
 
     InventoryItems.Add(Item);
+    bIsProcessingServerChange = false;
     OnInventoryUpdated.Broadcast();
     UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::AddItem - Added new item. InventoryItems.Num(): %d"), InventoryItems.Num());
     if (bAutoSave)
     {
-        SaveInventory();
+        SaveInventory(DefaultSlotName);
     }
 }
 
 void UMP_InventorySubsystem::RemoveItemByIndex(int32 Index, int32 QuantityToRemove)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     if (InventoryItems.IsValidIndex(Index))
     {
         if (QuantityToRemove == -1)
@@ -79,13 +90,15 @@ void UMP_InventorySubsystem::RemoveItemByIndex(int32 Index, int32 QuantityToRemo
         OnInventoryUpdated.Broadcast();
         if (bAutoSave)
         {
-            SaveInventory();
+            SaveInventory(DefaultSlotName);
         }
     }
 }
 
 void UMP_InventorySubsystem::RemoveItem(FMP_InventoryStruct Item, int32 QuantityToRemove)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     for (int32 i = 0; i < InventoryItems.Num(); i++)
     {
         if (InventoryItems[i].ItemID == Item.ItemID)
@@ -111,7 +124,7 @@ void UMP_InventorySubsystem::RemoveItem(FMP_InventoryStruct Item, int32 Quantity
             OnInventoryUpdated.Broadcast();
             if (bAutoSave)
             {
-                SaveInventory();
+                SaveInventory(DefaultSlotName);
             }
             return;
         }
@@ -120,6 +133,8 @@ void UMP_InventorySubsystem::RemoveItem(FMP_InventoryStruct Item, int32 Quantity
 
 void UMP_InventorySubsystem::ReplaceItemByIndex(int32 Index, FMP_InventoryStruct NewItem)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     if (NewItem.ItemID.IsNone() || NewItem.Quantity <= 0)
     {
         return;
@@ -131,13 +146,15 @@ void UMP_InventorySubsystem::ReplaceItemByIndex(int32 Index, FMP_InventoryStruct
         OnInventoryUpdated.Broadcast();
         if (bAutoSave)
         {
-            SaveInventory();
+            SaveInventory(DefaultSlotName);
         }
     }
 }
 
 void UMP_InventorySubsystem::ReplaceItem(FMP_InventoryStruct OldItem, FMP_InventoryStruct NewItem)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     if (NewItem.ItemID.IsNone() || NewItem.Quantity <= 0)
     {
         return;
@@ -151,7 +168,7 @@ void UMP_InventorySubsystem::ReplaceItem(FMP_InventoryStruct OldItem, FMP_Invent
             OnInventoryUpdated.Broadcast();
             if (bAutoSave)
             {
-                SaveInventory();
+                SaveInventory(DefaultSlotName);
             }
             return;
         }
@@ -160,21 +177,23 @@ void UMP_InventorySubsystem::ReplaceItem(FMP_InventoryStruct OldItem, FMP_Invent
 
 void UMP_InventorySubsystem::SwapItems(int32 IndexA, int32 IndexB)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     if (InventoryItems.IsValidIndex(IndexA) && InventoryItems.IsValidIndex(IndexB))
     {
-        FMP_InventoryStruct Temp = InventoryItems[IndexA];
-        InventoryItems[IndexA] = InventoryItems[IndexB];
-        InventoryItems[IndexB] = Temp;
+        InventoryItems.Swap(IndexA, IndexB);
         OnInventoryUpdated.Broadcast();
         if (bAutoSave)
         {
-            SaveInventory();
+            SaveInventory(DefaultSlotName);
         }
     }
 }
 
 void UMP_InventorySubsystem::UpdateItemTags(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd)
 {
+    FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
+
     for (FMP_InventoryStruct& Item : InventoryItems)
     {
         if (Item.ItemID == ItemID)
@@ -188,7 +207,7 @@ void UMP_InventorySubsystem::UpdateItemTags(FName ItemID, FGameplayTag TagToRemo
                 OnInventoryUpdated.Broadcast();
                 if (bAutoSave)
                 {
-                    SaveInventory();
+                    SaveInventory(DefaultSlotName);
                 }
             }
             return;
@@ -228,13 +247,42 @@ UTexture* UMP_InventorySubsystem::LoadItemIcon(const FMP_InventoryStruct& Item)
     return nullptr;
 }
 
-void UMP_InventorySubsystem::SaveInventory()
+bool UMP_InventorySubsystem::HasSpaceForItem(FMP_InventoryStruct Item) const
+{
+    constexpr int32 MaxInventorySize = 100; // Hard limit for now
+    return InventoryItems.Num() < MaxInventorySize;
+}
+
+void UMP_InventorySubsystem::DropItem(int32 Index, int32 Quantity)
+{
+    if (InventoryItems.IsValidIndex(Index))
+    {
+        FMP_InventoryStruct& Item = InventoryItems[Index];
+        if (!Item.Tags.HasTag(FGameplayTag::RequestGameplayTag("Item.Private")))
+        {
+            RemoveItemByIndex(Index, Quantity);
+            // TODO: Spawn item in world -- added from plan
+        }
+    }
+}
+
+void UMP_InventorySubsystem::HandleDeathLoss()
+{
+    // Placeholder: Implement death loss modes (Keep All default) -- added from plan
+    OnInventoryUpdated.Broadcast();
+    if (bAutoSave) SaveInventory(DefaultSlotName);
+}
+
+void UMP_InventorySubsystem::SaveInventory(const FString& PlayerID)
 {
     UMP_InventorySave* SaveGameInstance = Cast<UMP_InventorySave>(UGameplayStatics::CreateSaveGameObject(UMP_InventorySave::StaticClass()));
     if (SaveGameInstance)
     {
+
+        FString SlotName = PlayerID.IsEmpty() ? DefaultSlotName : PlayerID; // Use PlayerID or fallback to DefaultSlotName
+
         SaveGameInstance->InventoryItems = InventoryItems;
-        SaveGameInstance->SaveToSlot(TEXT("InventorySlot"));
+        SaveGameInstance->SaveToSlot(SlotName);
         UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::SaveInventory - Saved %d items to slot 'InventorySlot'"), InventoryItems.Num());
     }
     else
@@ -243,10 +291,12 @@ void UMP_InventorySubsystem::SaveInventory()
     }
 }
 
-void UMP_InventorySubsystem::LoadInventory()
+void UMP_InventorySubsystem::LoadInventory(const FString& PlayerID)
 {
+    
     UMP_InventorySave* SaveGameInstance = Cast<UMP_InventorySave>(UGameplayStatics::CreateSaveGameObject(UMP_InventorySave::StaticClass()));
-    if (SaveGameInstance && SaveGameInstance->LoadFromSlot(TEXT("InventorySlot")))
+    FString SlotName = PlayerID.IsEmpty() ? DefaultSlotName : PlayerID; // Use PlayerID or fallback to DefaultSlotName
+    if (SaveGameInstance && SaveGameInstance->LoadFromSlot(SlotName))
     {
         InventoryItems = SaveGameInstance->InventoryItems;
         UE_LOG(LogTemp, Log, TEXT("UMP_InventorySubsystem::LoadInventory - Loaded %d items from slot 'InventorySlot'"), InventoryItems.Num());

@@ -11,7 +11,7 @@
  */
 
 USTRUCT(BlueprintType)
-struct MP_INVENTORY_API FMP_InventoryStruct
+struct FMP_InventoryStruct
 {
 public:
     GENERATED_BODY()
@@ -37,4 +37,33 @@ public:
 
 	FMP_InventoryStruct();
 	~FMP_InventoryStruct();
+
+    bool operator==(const FMP_InventoryStruct& Other) const
+    {
+        return ItemID == Other.ItemID; // Compare by ItemID only—adjust if needed
+    }
+};
+
+
+USTRUCT(BlueprintType)
+struct FMP_ItemDefinition
+{
+    GENERATED_BODY()
+public:
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    FName ItemID;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    FString DisplayName;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    FGameplayTagContainer Tags;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    FString Icon;
+
+    FMP_ItemDefinition();
+    ~FMP_ItemDefinition();
+
 };
