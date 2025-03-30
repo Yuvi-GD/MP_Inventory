@@ -12,9 +12,12 @@
 - 📁 **Persistent Storage**: Items persist in subsystem-backed storage for seamless inventory management.
 - 🏷️ **Advanced Tag System**: Built-in tag-based filtering to manage and retrieve specific item types.
 - 🔒 **Private and Public Item Support**: Control item visibility with private and public inventory settings.
-- 🔄 **Item Exchange & Swap**: Exchange, swap, or replace items directly between player inventories.
-- 🛠️ **Dynamic Updates and Events**: Real-time update of item data and tags, with dispatchers for custom logic binding.
+- 🔄 Item Exchange & Trading – Secure player-to-player and player-to-marketplace trading.
+- 💰 Dynamic Economy System – Item prices adjust based on trade volume & demand.
+- 📊 Historical Metadata Storage – Tracks item trade history and price fluctuations.
 - ⚙️ **Subsystem-Based Architecture**: Clean, modular approach using Unreal's subsystem for flexibility and scalability.
+- 🛠 **Blueprint & C++ API Support**: Exposes inventory and trading functions to Blueprints.
+- 🔁 **Real-Time UI Sync**: Inventory changes trigger event dispatchers for live UI updates.
 
 ---
 
@@ -26,11 +29,17 @@
 - **Event dispatchers** for item update notifications, allowing easy UI and logic binding.
 - **Inventory manipulation methods**: Add, remove, swap, replace, and exchange items.
 - **Access control** via private/public flags for inventory visibility.
+- **MP_ItemDefinitionStorage** Stores item definitions and custom attributes.
+- **MP_ItemMetadataStorage** Tracks item trade history, pricing, and metadata. Server-side only to prevent tampering.
+- **Trading Manager** is Responsible For Trade Item through Player or non Player.
+- **MP_TradeExchange** Handles manual & auto-listing of public items on the trade system.
+- **MP_ItemTrackerSubsystem** Maps ItemID → PlayerID for item searching and trading.
+- **MP_EconomySystem** Adjusts item prices dynamically based on trading trends.
 
 ---
 
-## 🛫 Startup Guide
-
+## 🛫 Getting Started
+# 📥 Installation
 1. **Download or Clone** this repository:
    ```bash
    git clone https://github.com/YourGitHubName/MP_Inventory.git
@@ -45,12 +54,12 @@
    - Go to `Edit` ➡ `Plugins` ➡ Search for **MP_Inventory** and enable it.
    - Restart the engine if prompted.
 
-4. **Start Using MP_Inventory**:
-   - Access the Inventory Subsystem to start adding and managing items.
-   - Bind event dispatchers to your UI or gameplay logic to reflect inventory changes.
-   - Use provided APIs for item exchange, filtering, and tag-based operations.
-
-5. **Check Samples**: Example content and blueprint usage available in `Examples` folder (if provided).
+# 🛠 Usage
+1️⃣ Attach **MP_InventoryComponent** to Player Characters.
+2️⃣ Set up **MP_ItemDefinitionStorage** to define items.
+3️⃣ Use **MP_TradingManager** for secure trades.
+4️⃣ Utilize **MP_TradeExchange** for listing items.
+5️⃣ Access inventory and trading functions in Blueprints.
 
 ---
 
