@@ -20,7 +20,6 @@ public:
 
 	// Called when the game starts
 	virtual void BeginPlay() override;
-    void EndPlay(const EEndPlayReason::Type EndPlayReason);
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
@@ -32,21 +31,36 @@ public:
     void AddItem(FMP_InventoryStruct Item);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void RemoveItemByIndex(int32 Index, int32 Quantity);
+    void RemoveItemByIndex(int32 Index, int32 Quantity =1);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void RemoveItemByID(FName ItemID, int32 Quantity);
+    void RemoveItemByID(FName ItemID, int32 Quantity =1);
 
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
+    void ReplaceItemByIndex(int32 Index, FMP_InventoryStruct NewItem);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
+    void ReplaceItem(FMP_InventoryStruct OldItem, FMP_InventoryStruct NewItem);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
+    void SwapItems(int32 IndexA, int32 IndexB);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
+    void UpdateItemTags(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd);
+
+    // Server-side: Interact with other players
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
     void DropItem(int32 Index, int32 Quantity);
 
-    // Server-side: Interact with other players
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
     void RequestItemFromPlayer(UMP_InventoryComponent* TargetComponent, FName ItemID, int32 Quantity);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
     void GiveItemToPlayer(UMP_InventoryComponent* TargetComponent, FMP_InventoryStruct Item);
 
+
+    //-------------------------- PURE FUCNTIONS --------------------------------//
+    
     // Client-side getters (replicated data)
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
     TArray<FMP_InventoryStruct> GetItemsByTag(FGameplayTagContainer Tag, bool bRequireAllTags) const;
@@ -77,7 +91,13 @@ protected:
     void ClientRemoveItemByIndex(int32 Index, int32 Quantity);
 
     UFUNCTION(Client, Reliable)
-    void ClientRemoveItemByID(FName ItemID, int32 Quantity);
+    void ClientReplaceItemByIndex(int32 Index, FMP_InventoryStruct NewItem);
+
+    UFUNCTION(Client, Reliable)
+    void ClientSwapItems(int32 IndexA, int32 IndexB);
+
+    UFUNCTION(Client, Reliable)
+    void ClientUpdateItemTags(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd);
 
     UFUNCTION(Client, Reliable)
     void ClientDropItem(int32 Index, int32 Quantity);

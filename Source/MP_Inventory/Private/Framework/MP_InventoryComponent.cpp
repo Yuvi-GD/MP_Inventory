@@ -2,7 +2,7 @@
 
 
 #include "Framework/MP_InventoryComponent.h"
-#include "Subsystem/MP_InventorySubsystem.h"
+#include "Framework/MP_InventorySubsystem.h"
 #include "Net/UnrealNetwork.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
@@ -45,15 +45,6 @@ void UMP_InventoryComponent::BeginPlay()
 
 }
 
-void UMP_InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-    if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
-    {
-        Subsystem->OnInventoryUpdated.RemoveDynamic(this, &UMP_InventoryComponent::ClientSyncFromLocalSubsystem);
-    }
-    Super::EndPlay(EndPlayReason);
-}
-
 void UMP_InventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -64,6 +55,16 @@ void UMP_InventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 void UMP_InventoryComponent::AddItem_Implementation(FMP_InventoryStruct Item)
 {
     if (!GetOwner()->HasAuthority()) return;
+
+    if (!Item.Tags.HasTag(FGameplayTag::RequestGameplayTag("Item.Public")))
+    {
+        Item.Tags.AddTag(FGameplayTag::RequestGameplayTag("Item.Public"));
+
+        if (Item.Tags.HasTag(FGameplayTag::RequestGameplayTag("Item.Private")))
+        {
+            Item.Tags.RemoveTag(FGameplayTag::RequestGameplayTag("Item.Private"));
+        }
+    }
 
     if (Item.ItemID.IsNone() || Item.Quantity <= 0) return;
 
@@ -99,6 +100,7 @@ void UMP_InventoryComponent::RemoveItemByIndex_Implementation(int32 Index, int32
             InventoryItems[Index].Quantity -= Quantity;
         }
         ClientRemoveItemByIndex(Index, Quantity);
+        Multicast_BroadcastInventoryUpdate();
     }
 }
 
@@ -127,6 +129,78 @@ void UMP_InventoryComponent::RemoveItemByID_Implementation(FName ItemID, int32 Q
             InventoryItems[Index].Quantity -= Quantity;
         }
         ClientRemoveItemByIndex(Index, Quantity);
+        Multicast_BroadcastInventoryUpdate();
+    }
+}
+
+void UMP_InventoryComponent::ReplaceItemByIndex_Implementation(int32 Index, FMP_InventoryStruct NewItem)
+{
+    if (!GetOwner()->HasAuthority()) return;
+    if (NewItem.ItemID.IsNone() || NewItem.Quantity <= 0)
+    {
+        return;
+    }
+
+    if (InventoryItems.IsValidIndex(Index))
+    {
+        InventoryItems[Index] = NewItem;
+        ClientReplaceItemByIndex(Index, NewItem);
+        Multicast_BroadcastInventoryUpdate();
+    }
+}
+
+void UMP_InventoryComponent::ReplaceItem_Implementation(FMP_InventoryStruct OldItem, FMP_InventoryStruct NewItem)
+{
+    if (!GetOwner()->HasAuthority()) return;
+    if (NewItem.ItemID.IsNone() || NewItem.Quantity <= 0)
+    {
+        return;
+    }
+
+    for (int32 i = 0; i < InventoryItems.Num(); i++)
+    {
+        if (InventoryItems[i].ItemID == OldItem.ItemID)
+        {
+            InventoryItems[i] = NewItem;
+            ClientReplaceItemByIndex(i, NewItem);
+            Multicast_BroadcastInventoryUpdate();
+            break;
+        }
+    }
+
+}
+
+void UMP_InventoryComponent::SwapItems_Implementation(int32 IndexA, int32 IndexB)
+{
+    if (!GetOwner()->HasAuthority()) return;
+    if (InventoryItems.IsValidIndex(IndexA) && InventoryItems.IsValidIndex(IndexB))
+    {
+        InventoryItems.Swap(IndexA, IndexB);
+        ClientSwapItems(IndexA, IndexB);
+        Multicast_BroadcastInventoryUpdate();
+    }
+}
+
+void UMP_InventoryComponent::UpdateItemTags_Implementation(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd)
+{
+    if (!GetOwner()->HasAuthority()) return;
+
+    //for (int32 i = 0; i < InventoryItems.Num(); i++)
+    for (FMP_InventoryStruct& Item : InventoryItems)
+    {
+        if (Item.ItemID == ItemID)
+        {
+            // Check if the item has the tag to remove
+            if (Item.Tags.HasTag(TagToRemove))
+            {
+                // Remove the old tag and add the new tag
+                Item.Tags.RemoveTag(TagToRemove);
+                Item.Tags.AddTag(TagToAdd);
+                ClientUpdateItemTags(ItemID,TagToRemove,TagToAdd);
+                Multicast_BroadcastInventoryUpdate();
+            }
+            return;
+        }
     }
 }
 
@@ -182,6 +256,8 @@ void UMP_InventoryComponent::GiveItemToPlayer_Implementation(UMP_InventoryCompon
     UE_LOG(LogTemp, Log, TEXT("UMP_InventoryComponent::GiveItemToPlayer - Gave %s x%d to %s"), *Item.ItemID.ToString(), Item.Quantity, *TargetComponent->GetOwner()->GetName());
 }
 
+//-------------------------------------------- PURE FUCNTIONS --------------------------------------------------//
+
 TArray<FMP_InventoryStruct> UMP_InventoryComponent::GetItemsByTag(FGameplayTagContainer Tag, bool bRequireAllTags) const
 {
     TArray<FMP_InventoryStruct> FilteredItems;
@@ -230,7 +306,6 @@ void UMP_InventoryComponent::ClientAddItem_Implementation(FMP_InventoryStruct It
     {
         Subsystem->bIsProcessingServerChange = true;
         Subsystem->AddItem(Item);
-        //InventoryItems = Subsystem->GetAllItems();
     }
 }
 
@@ -239,16 +314,30 @@ void UMP_InventoryComponent::ClientRemoveItemByIndex_Implementation(int32 Index,
     if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
     {
         Subsystem->RemoveItemByIndex(Index, Quantity);
-        //InventoryItems = Subsystem->GetAllItems();
     }
 }
 
-void UMP_InventoryComponent::ClientRemoveItemByID_Implementation(FName ItemID, int32 Quantity)
+void UMP_InventoryComponent::ClientReplaceItemByIndex_Implementation(int32 Index, FMP_InventoryStruct NewItem)
 {
     if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
     {
-        Subsystem->RemoveItem(Subsystem->GetItemByItemID(ItemID), Quantity);
-        //InventoryItems = Subsystem->GetAllItems();
+        Subsystem->ReplaceItemByIndex(Index,NewItem);
+    }
+}
+
+void UMP_InventoryComponent::ClientSwapItems_Implementation(int32 IndexA, int32 IndexB)
+{
+    if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
+    {
+        Subsystem->SwapItems(IndexA,IndexB);
+    }
+}
+
+void UMP_InventoryComponent::ClientUpdateItemTags_Implementation(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd)
+{
+    if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
+    {
+        Subsystem->UpdateItemTags(ItemID,TagToRemove,TagToAdd);
     }
 }
 
@@ -257,7 +346,6 @@ void UMP_InventoryComponent::ClientDropItem_Implementation(int32 Index, int32 Qu
     if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
     {
         Subsystem->DropItem(Index, Quantity);
-        //InventoryItems = Subsystem->GetAllItems();
     }
 }
 
@@ -265,7 +353,6 @@ void UMP_InventoryComponent::ClientSyncFromLocalSubsystem_Implementation()
 {
     if (UMP_InventorySubsystem* Subsystem = GetOwner()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
     {
-        //InventoryItems.Empty();
         InventoryItems = Subsystem->GetAllItems();
         ServerSyncFromLocalSubsystem(Subsystem->GetAllItems());
         Subsystem->OnInventoryUpdated.Broadcast();
@@ -283,5 +370,6 @@ void UMP_InventoryComponent::ServerSyncFromLocalSubsystem_Implementation(const T
 
 void UMP_InventoryComponent::Multicast_BroadcastInventoryUpdate_Implementation()
 {
+    UE_LOG(LogTemp, Log, TEXT("UMP_InventoryComponent::Multicast Distpatcher event - Requested from %s"), *this->GetOwner()->GetName());
     OnInventoryUpdated.Broadcast(); // Fires on all clients AND server
 }

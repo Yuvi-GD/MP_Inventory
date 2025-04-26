@@ -18,7 +18,7 @@ class MP_INVENTORY_API UMP_ItemDefinitionStorage : public UObject
 public:
     UMP_ItemDefinitionStorage();
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory")
     const FMP_ItemDefinition& GetItemDefinition(FName ItemID) const;
 
     static UMP_ItemDefinitionStorage* Get();

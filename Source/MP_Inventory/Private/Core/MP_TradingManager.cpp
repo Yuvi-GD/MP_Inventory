@@ -2,135 +2,482 @@
 
 
 #include "Core/MP_TradingManager.h"
-#include "Subsystem/MP_InventorySubsystem.h"
+#include "Framework/MP_InventorySubsystem.h"
+#include "Framework/MP_Inventory_PlayerState.h"
+//#include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "Framework/MP_Inventory_BFL.h"
+#include "Kismet/GameplayStatics.h"
+#include "Interfaces/MP_Inventory_PlayerState_I.h"
+#include "Interfaces/MP_Inventory_PlayerController_I.h"
+
 
 UMP_TradingManager::UMP_TradingManager()
 {
-    CurrentState = ETradeState::Idle;
-    OfferA.OfferingPlayer = "";
-    OfferB.OfferingPlayer = "";
+    OfferA;
+    OfferB;
+    ActiveTrades;
 }
 
-void UMP_TradingManager::InitiateTrade(FString PlayersA, FString PlayersB)
+void UMP_TradingManager::RequestTrade(APlayerState* PlayerA, APlayerState* PlayerB)
 {
-    if (CurrentState != ETradeState::Idle || PlayerA.IsEmpty() || PlayerB.IsEmpty() || PlayerA == PlayerB)
+    if (PlayerA == PlayerB)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Invalid trade initiation"));
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Invalid trade initiation: Both Player ID is Same"));
+        return ;
+    }
+    if (!PlayerB || !PlayerA)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Invalid trade initiation: One of the Player ID is not Valid"));
+        return ;
     }
 
-    this->PlayerA = PlayerA;
-    this->PlayerB = PlayerB;
-    OfferA.OfferingPlayer = PlayerA;
-    OfferB.OfferingPlayer = PlayerB;
-    CurrentState = ETradeState::Initiated;
+    AMP_Inventory_PlayerState *PlayerStateA = Cast<AMP_Inventory_PlayerState>(PlayerA);
+    AMP_Inventory_PlayerState *PlayerStateB = Cast<AMP_Inventory_PlayerState>(PlayerB);
 
-    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::InitiateTrade - Trade initiated between %s and %s"), *PlayerA, *PlayerB);
-}
-
-void UMP_TradingManager::MakeOffer(FString Player, FMP_InventoryStruct Item)
-{
-    if (CurrentState != ETradeState::Initiated && CurrentState != ETradeState::Offered)
+    if(PlayerStateA && PlayerStateB)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::MakeOffer - Trade not initiated"));
-        return;
-    }
-
-    if (Player != PlayerA && Player != PlayerB)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::MakeOffer - Player %s not in trade"), *Player);
-        return;
-    }
-
-    if (Item.ItemID.IsNone() || Item.Quantity <= 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::MakeOffer - Invalid item offered by %s"), *Player);
-        return;
-    }
-
-    if (Player == PlayerA)
-    {
-        OfferA.OfferedItems.Add(Item);
+        PlayerStateB->OnRequestTrade(PlayerStateA);
     }
     else
     {
-        OfferB.OfferedItems.Add(Item);
+        if (PlayerB->Implements<UMP_Inventory_PlayerState_I>())
+        {
+            IMP_Inventory_PlayerState_I::Execute_OnRequestTrade(PlayerB, PlayerA);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::PlayerState Check == %s "), *PlayerB->GetName());
     }
-
-    CurrentState = ETradeState::Offered;
-    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::MakeOffer - %s offered item %s"), *Player, *Item.ItemID.ToString());
+    return;
 }
 
-void UMP_TradingManager::AcceptOffer()
+int32  UMP_TradingManager::AcceptTrade(APlayerState* PlayerA, APlayerState* PlayerB)
 {
-    if (CurrentState != ETradeState::Offered)
+    if (PlayerA == PlayerB)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::AcceptOffer - No offer to accept"));
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Invalid trade initiation: Both Player ID is Same"));
+        return -1;
+    }
+    if (!PlayerB || !PlayerA)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Invalid trade initiation: One of the Player ID is not Valid"));
+        return -1;
+    }
+
+    AMP_Inventory_PlayerState* PlayerStateA = Cast<AMP_Inventory_PlayerState>(PlayerA);
+    AMP_Inventory_PlayerState* PlayerStateB = Cast<AMP_Inventory_PlayerState>(PlayerB);
+    
+    int32 Tradeid;
+
+    
+    /* Only for check that trade has been done before
+    TArray<FTradePlayer> Playerlist;
+    TradesList.GenerateValueArray(Playerlist);
+    
+    int32 Tempid = -1;
+    
+    for (FTradePlayer Playerid: Playerlist)
+    {
+        Tempid++;
+        if (Playerid.PlayerA == PlayerStateA->PersistentPlayerId || Playerid.PlayerB == PlayerStateB->PersistentPlayerId)
+        {
+            Tradeid =Tempid;
+            break;
+        }
+    }*/
+
+    if (PlayerStateA && PlayerStateB)
+    {
+        Tradeid = TradesList.GetMaxIndex() + 1;   
+        FTradePlayer PlayersId;
+        PlayersId.PlayerA = PlayerStateA->PersistentPlayerId;
+        PlayersId.PlayerB = PlayerStateB->PersistentPlayerId;
+
+        PlayerStateA->OnAcceptTrade(Tradeid, PlayerStateB);
+        TradesList.Add(Tradeid, PlayersId);
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::InitiateTrade - Trade initiated between Player A and Player B With Trade id %d"), Tradeid);
+    }
+    else
+    {
+        Tradeid = ActiveTrades.GetMaxIndex() + 1;
+        FTradeSession PlayersId;
+
+        PlayersId.PlayerA = PlayerA->GetUniqueId();
+        PlayersId.PlayerB = PlayerB->GetUniqueId();
+
+        if (PlayerA->Implements<UMP_Inventory_PlayerState_I>())
+        {
+            IMP_Inventory_PlayerState_I::Execute_OnAcceptTrade(PlayerA, Tradeid, PlayerB);
+        }
+        ActiveTrades.Add(Tradeid,PlayersId);
+        UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::InitiateTrade - Trade initiated between Player A and Player B"));
+    }
+    return Tradeid;
+
+    //int32 Tradeid = 11;
+}
+
+void UMP_TradingManager::RequestItemOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemID)
+{
+    //ActiveTrades.Find(Trade_ID);
+    if (!ActiveTrades.Contains(Trade_ID))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RequestItemOffer - Player %d not in trade"), Trade_ID);
         return;
     }
 
-    CurrentState = ETradeState::Accepted;
-
-    // Here we’d transfer items via Subsystem or Component—placeholder for now
-    if (UMP_InventorySubsystem* Subsystem = GetWorld()->GetGameInstance()->GetSubsystem<UMP_InventorySubsystem>())
+    if (ItemID.IsNone())
     {
-        for (const FMP_InventoryStruct& Item : OfferA.OfferedItems)
-        {
-            Subsystem->AddItem(Item); // Placeholder—needs PlayerB’s inventory
-            Subsystem->RemoveItem(Item, Item.Quantity); // Placeholder—needs PlayerA’s inventory
-        }
-        for (const FMP_InventoryStruct& Item : OfferB.OfferedItems)
-        {
-            Subsystem->AddItem(Item); // Placeholder—needs PlayerA’s inventory
-            Subsystem->RemoveItem(Item, Item.Quantity); // Placeholder—needs PlayerB’s inventory
-        }
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::AcceptOffer - Trade accepted"));
-    EndTrade();
-}
-
-void UMP_TradingManager::RejectOffer()
-{
-    if (CurrentState != ETradeState::Offered)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RejectOffer - No offer to reject"));
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RequestItemOffer - Invalid item offered by %d"), Trade_ID);
         return;
     }
 
-    CurrentState = ETradeState::Rejected;
-    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RejectOffer - Trade rejected"));
-    ResetTrade();
-}
+    FItemList Items;
+    Items.SendItemID = ItemID;
 
-void UMP_TradingManager::EndTrade()
-{
-    if (CurrentState == ETradeState::Accepted || CurrentState == ETradeState::Completed)
+    AMP_Inventory_PlayerState* PlayerStateIDA = Cast<AMP_Inventory_PlayerState>(PlayerID);
+    if (PlayerStateIDA)
     {
-        CurrentState = ETradeState::Completed;
-        UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::EndTrade - Trade completed"));
+        FPlayerTradeOffer TCurrentOffer;
+        FTradePlayer CurrentTrade;
+        CurrentTrade = TradesList[Trade_ID];
+        if (CurrentTrade.PlayerA == PlayerStateIDA->PersistentPlayerId) // checking TradeID with Player existance
+        {
+            if (PlayerTradeA.Contains(Trade_ID))// Checking TradeID Existe in OfferContainer
+            {
+                if (PlayerTradeA[Trade_ID].OfferingPlayer == PlayerStateIDA->PersistentPlayerId) // Conforming Player
+                {
+                    PlayerTradeA[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerStateIDA->PersistentPlayerId;
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerTradeA.Add(Trade_ID, TCurrentOffer);
+            }
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this, CurrentTrade.PlayerB);
+            PlayerStateIDB->OnRequestItemOffer(Trade_ID, PlayerStateIDA, ItemID);
+        }
+        else if (CurrentTrade.PlayerB == PlayerStateIDA->PersistentPlayerId)
+        {
+
+            if (PlayerTradeB.Contains(Trade_ID))
+            {
+                if (PlayerTradeB[Trade_ID].OfferingPlayer == PlayerStateIDA->PersistentPlayerId)
+                {
+                    PlayerTradeB[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerStateIDA->PersistentPlayerId;
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerTradeB.Add(Trade_ID, TCurrentOffer);
+            }
+
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this, CurrentTrade.PlayerA);
+            PlayerStateIDB->OnRequestItemOffer(Trade_ID, PlayerStateIDA, ItemID);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Player ID is not matching with any of the PlayerID in the Given TradeID"));
+        }
     }
-    ResetTrade();
+    else
+    {
+        FExchangeTradeOffer TCurrentOffer;
+        FTradeSession CurrentSession;
+        CurrentSession = ActiveTrades[Trade_ID];
+        if (CurrentSession.PlayerA == PlayerID->GetUniqueId()) // checking TradeID with Player existance
+        {
+            if (PlayerOfferA.Contains(Trade_ID)) // Checking TradeID Existe in OfferContainer
+            {
+                if (PlayerOfferA[Trade_ID].OfferingPlayer == PlayerID->GetUniqueId())// Conforming Player
+                {
+                    PlayerOfferA[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerID->GetUniqueId();
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerOfferA.Add(Trade_ID, TCurrentOffer);
+            }
+
+            FUniqueNetIdRepl PlayerIDB;
+            PlayerIDB = CurrentSession.PlayerB.GetUniqueNetId();
+
+            APlayerState* PlayerState = UGameplayStatics::GetPlayerStateFromUniqueNetId(this, PlayerIDB);
+            if (PlayerState->Implements<UMP_Inventory_PlayerState_I>())
+            {
+                IMP_Inventory_PlayerState_I::Execute_OnRequestItemOffer(PlayerState, Trade_ID, PlayerID, ItemID);
+            }
+        }
+        else if (CurrentSession.PlayerB == PlayerID->GetUniqueId()) // checking TradeID with Player existance
+        {
+
+            if (PlayerOfferB.Contains(Trade_ID)) // Checking TradeID Existe in OfferContainer
+            {
+                if (PlayerOfferB[Trade_ID].OfferingPlayer == PlayerID->GetUniqueId())// Conforming Player
+                {
+                    PlayerOfferB[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerID->GetUniqueId();
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerOfferB.Add(Trade_ID, TCurrentOffer);
+            }
+
+            FUniqueNetIdRepl PlayerIDB;
+            PlayerIDB = CurrentSession.PlayerB.GetUniqueNetId();
+
+            APlayerState* PlayerState = UGameplayStatics::GetPlayerStateFromUniqueNetId(this, PlayerIDB);
+            if (PlayerState->Implements<UMP_Inventory_PlayerState_I>())
+            {
+                IMP_Inventory_PlayerState_I::Execute_OnRequestItemOffer(PlayerState, Trade_ID, PlayerID, ItemID);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Player ID is not matching with any of the PlayerID in the Given TradeID"));
+        }
+        UE_LOG(LogTemp, Error, TEXT("PlayerStateIDA Cast failed back to base Player State"));
+    }
+    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RequestItemOffer - %d offered item %s"), Trade_ID, *ItemID.ToString());
 }
 
-FTradeOffer UMP_TradingManager::GetOfferFromPlayer(FString Player) const
+void UMP_TradingManager::RequestExchageOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemIDA, FName ItemIDB)
 {
-    if (Player == PlayerA) return OfferA;
-    if (Player == PlayerB) return OfferB;
-    return FTradeOffer();
+    if (!ActiveTrades.Contains(Trade_ID) && !TradesList.Contains(Trade_ID))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RequestExchageOffer - Player %d not in trade"), Trade_ID);
+        return;
+    }
+    if (ItemIDA.IsNone() || ItemIDB.IsNone())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RequestExchageOffer - Invalid item offered by %d"), Trade_ID);
+        return;
+    }
+    
+    FItemList Items;
+    Items.SendItemID = ItemIDA;
+    Items.ReciveItemID = ItemIDB;
+
+    AMP_Inventory_PlayerState* PlayerStateIDA = Cast<AMP_Inventory_PlayerState>(PlayerID);
+    if (PlayerStateIDA)
+    {
+        FPlayerTradeOffer TCurrentOffer;
+        FTradePlayer CurrentTrade;
+        CurrentTrade = TradesList[Trade_ID];
+
+        if (CurrentTrade.PlayerA == PlayerStateIDA->PersistentPlayerId)
+        {
+            if (PlayerTradeA.Contains(Trade_ID))
+            {
+                if (PlayerTradeA[Trade_ID].OfferingPlayer == PlayerStateIDA->PersistentPlayerId)
+                {
+                    PlayerTradeA[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerStateIDA->PersistentPlayerId;
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerTradeA.Add(Trade_ID ,TCurrentOffer);
+            }
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this,CurrentTrade.PlayerB);
+            PlayerStateIDB->OnRequestExchageOffer(Trade_ID, PlayerStateIDA, ItemIDA, ItemIDB);
+        }
+        else if (CurrentTrade.PlayerB == PlayerStateIDA->PersistentPlayerId)
+        {
+
+            if (PlayerTradeB.Contains(Trade_ID))
+            {
+                if (PlayerTradeB[Trade_ID].OfferingPlayer == PlayerStateIDA->PersistentPlayerId)
+                {
+                    PlayerTradeB[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerStateIDA->PersistentPlayerId;
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerTradeB.Add(Trade_ID, TCurrentOffer);
+            }
+
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this,CurrentTrade.PlayerA);
+            PlayerStateIDB->OnRequestExchageOffer(Trade_ID, PlayerStateIDA, ItemIDA, ItemIDB);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Player ID is not matching with any of the PlayerID in the Given TradeID"));
+        }
+    }
+    else 
+    {
+        FExchangeTradeOffer TCurrentOffer;
+        FTradeSession CurrentSession;
+        CurrentSession = ActiveTrades[Trade_ID];
+
+        if (CurrentSession.PlayerA == PlayerID->GetUniqueId()) // checking TradeID with Player existance
+        {
+            if (PlayerOfferA.Contains(Trade_ID)) // Checking TradeID Existe in OfferContainer
+            {
+                if (PlayerOfferA[Trade_ID].OfferingPlayer == PlayerID->GetUniqueId())// Conforming Player
+                {
+                    PlayerOfferA[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerID->GetUniqueId();
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerOfferA.Add(Trade_ID, TCurrentOffer);
+            }
+
+            FUniqueNetIdRepl PlayerIDB;
+            PlayerIDB = CurrentSession.PlayerB.GetUniqueNetId();
+
+            APlayerState* PlayerState = UGameplayStatics::GetPlayerStateFromUniqueNetId(this, PlayerIDB);
+            if (PlayerState->Implements<UMP_Inventory_PlayerState_I>())
+            {
+                IMP_Inventory_PlayerState_I::Execute_OnRequestExchageOffer(PlayerState, Trade_ID, PlayerID, ItemIDA, ItemIDB);
+            }
+        }
+        else if (CurrentSession.PlayerB == PlayerID->GetUniqueId()) // checking TradeID with Player existance
+        {
+
+            if (PlayerOfferB.Contains(Trade_ID)) // Checking TradeID Existe in OfferContainer
+            {
+                if (PlayerOfferB[Trade_ID].OfferingPlayer == PlayerID->GetUniqueId())// Conforming Player
+                {
+                    PlayerOfferB[Trade_ID].OfferedItems.Add(Items);
+                }
+            }
+            else
+            {
+                TCurrentOffer.OfferingPlayer = PlayerID->GetUniqueId();
+                TCurrentOffer.OfferedItems.Add(Items);
+                PlayerOfferB.Add(Trade_ID, TCurrentOffer);
+            }
+
+            FUniqueNetIdRepl PlayerIDB;
+            PlayerIDB = CurrentSession.PlayerB.GetUniqueNetId();
+
+            APlayerState* PlayerState = UGameplayStatics::GetPlayerStateFromUniqueNetId(this, PlayerIDB);
+            if (PlayerState->Implements<UMP_Inventory_PlayerState_I>())
+            {
+                IMP_Inventory_PlayerState_I::Execute_OnRequestExchageOffer(PlayerState, Trade_ID, PlayerID, ItemIDA, ItemIDB);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Player ID is not matching with any of the PlayerID in the Given TradeID"));
+        }
+        UE_LOG(LogTemp, Error, TEXT("PlayerStateIDA Cast failed back to base Player State"));
+    }
+ 
+    return;
 }
 
-bool UMP_TradingManager::IsPlayerInTrade(FString Player) const
+void UMP_TradingManager::AcceptExchageOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemIDA, FName ItemIDB)
 {
-    return Player == PlayerA || Player == PlayerB;
+    if (!ActiveTrades.Contains(Trade_ID) && !TradesList.Contains(Trade_ID))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::AcceptExchageOffer - Player %d not in trade"), Trade_ID);
+        return;
+    }
+    if (ItemIDA.IsNone() || ItemIDB.IsNone())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::AcceptExchageOffer - Invalid item offered by %d"), Trade_ID);
+        return;
+    }
+
+    FItemList Items;
+    Items.SendItemID = ItemIDA;
+    Items.ReciveItemID = ItemIDB;
+
+    AMP_Inventory_PlayerState* PlayerStateIDA = Cast<AMP_Inventory_PlayerState>(PlayerID);
+    if (PlayerStateIDA)
+    {
+        FTradePlayer CurrentTrade;
+        CurrentTrade = TradesList[Trade_ID];
+        if (CurrentTrade.PlayerA == PlayerStateIDA->PersistentPlayerId)
+        {
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this, CurrentTrade.PlayerB);
+            UE_LOG(LogTemp, Warning, TEXT("Player ID is A = %s"), *PlayerStateIDB->GetName());
+            PlayerStateIDB->OnAcceptExchageOffer(Trade_ID, PlayerStateIDA, ItemIDA, ItemIDB);
+        }
+        else if (CurrentTrade.PlayerB == PlayerStateIDA->PersistentPlayerId)
+        {
+            AMP_Inventory_PlayerState* PlayerStateIDB = UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(this, CurrentTrade.PlayerA);
+            UE_LOG(LogTemp, Warning, TEXT("Player ID is B = %s"), *PlayerStateIDB->GetName());
+            PlayerStateIDB->OnAcceptExchageOffer(Trade_ID, PlayerStateIDA, ItemIDA, ItemIDB);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Player ID is not matching with any of the PlayerID in the Given TradeID"));
+        }
+    }
+    else
+    {
+        // Implementaiton is on going for not Specific player state/.....
+
+        UE_LOG(LogTemp, Error, TEXT("PlayerStateIDA Cast failed no go back... %s "), *PlayerStateIDA->GetName());
+    }
+    return;
 }
 
-void UMP_TradingManager::ResetTrade()
+void UMP_TradingManager::RejectOffer(int32 Trade_ID, FUniqueNetIdRepl PlayerID)
 {
-    PlayerA = "";
-    PlayerB = "";
-    OfferA.OfferedItems.Empty();
-    OfferB.OfferedItems.Empty();
-    CurrentState = ETradeState::Idle;
+    FMP_InventoryStruct Curentitem;
+    FTradeSession CurrentSession;
+    CurrentSession = ActiveTrades[Trade_ID];
+    if (CurrentSession.PlayerB == PlayerID)
+    {
+        UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RejectOffer - Trade rejected by Player A"));
+        Curentitem = OfferA[Trade_ID].OfferedItems.Last();
+        OfferA[Trade_ID].OfferedItems.Remove(Curentitem);
+        //return Curentitem;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RejectOffer - Trade rejected by Player B"));
+        Curentitem = OfferB[Trade_ID].OfferedItems.Last();
+        OfferB[Trade_ID].OfferedItems.Remove(Curentitem);
+        //return Curentitem;
+    }
 }
 
+void UMP_TradingManager::EndTrade(int32 Trade_ID)
+{
+    ActiveTrades.Remove(Trade_ID);
+    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::EndTrade - Trade completed"));
+}
+
+FPlayerTradeOffer UMP_TradingManager::GetOfferFromPlayer(int32 Trade_ID, FString Player) const
+{
+    FTradePlayer Players;
+    Players = TradesList[Trade_ID];
+    if (Player == Players.PlayerA) return PlayerTradeA[Trade_ID];
+    if (Player == Players.PlayerB) return PlayerTradeB[Trade_ID];
+    return FPlayerTradeOffer();
+}
+
+bool UMP_TradingManager::IsPlayerInTrade(FUniqueNetIdRepl PlayerID) const
+{
+    FTradeSession ActiveTrade;
+    TArray<FTradeSession> ActiveTradeValue;
+    ActiveTrades.GenerateValueArray(ActiveTradeValue);
+
+    for(FTradeSession Traders:ActiveTradeValue)
+    {
+        if (Traders.PlayerA == PlayerID || Traders.PlayerB == PlayerID)
+        {
+            return true;
+        }
+    }
+    return false;
+}

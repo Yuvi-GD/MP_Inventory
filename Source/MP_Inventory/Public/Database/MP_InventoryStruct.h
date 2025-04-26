@@ -51,17 +51,17 @@ struct FMP_ItemDefinition
     GENERATED_BODY()
 public:
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
     FName ItemID;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
     FString DisplayName;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
     FGameplayTagContainer Tags;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
-    FString Icon;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
+    TSoftObjectPtr<UTexture> Icon;
 
     FMP_ItemDefinition();
     ~FMP_ItemDefinition();

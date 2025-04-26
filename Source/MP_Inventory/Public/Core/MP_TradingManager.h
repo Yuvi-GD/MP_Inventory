@@ -10,15 +10,31 @@
 /**
  * 
  */
-UENUM(BlueprintType)
-enum class ETradeState : uint8
+USTRUCT(BlueprintType)
+struct FTradeSession
 {
-    Idle,
-    Initiated,
-    Offered,
-    Accepted,
-    Completed,
-    Rejected
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FUniqueNetIdRepl PlayerA;
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FUniqueNetIdRepl PlayerB;
+
+    // Add other properties for trade session here
+};
+
+USTRUCT(BlueprintType)
+struct FTradePlayer
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FString PlayerA;
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FString PlayerB;
+
+    // Add other properties for trade session here
 };
 
 USTRUCT(BlueprintType)
@@ -27,10 +43,46 @@ struct FTradeOffer
     GENERATED_BODY()
 
     UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
-    FString OfferingPlayer;
+    FUniqueNetIdRepl OfferingPlayer;
 
     UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
     TArray<FMP_InventoryStruct> OfferedItems;
+};
+
+USTRUCT(BlueprintType)
+struct FItemList
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FName SendItemID;
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FName ReciveItemID;
+};
+
+USTRUCT(BlueprintType)
+struct FExchangeTradeOffer
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FUniqueNetIdRepl OfferingPlayer;
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    TArray<FItemList> OfferedItems;
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerTradeOffer
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    FString OfferingPlayer;
+
+    UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
+    TArray<FItemList> OfferedItems;
 };
 
 UCLASS(Blueprintable)
@@ -41,46 +93,59 @@ class MP_INVENTORY_API UMP_TradingManager : public UObject
 public:
     UMP_TradingManager();
 
+public:
     UFUNCTION(BlueprintCallable, Category = "MP_Trading")
-    void InitiateTrade(FString PlayersA, FString PlayersB);
+    void RequestTrade(APlayerState* PlayerA, APlayerState* PlayerB);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Trading")
-    void MakeOffer(FString Player, FMP_InventoryStruct Item);
+    int32  AcceptTrade(APlayerState* PlayerA, APlayerState* PlayerB);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Trading")
-    void AcceptOffer();
+    void RequestItemOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemID);
+    
+    UFUNCTION(BlueprintCallable, Category = "MP_Trading")
+    void RequestExchageOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemIDA , FName ItemIDB);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Trading")
-    void RejectOffer();
+    void AcceptExchageOffer(int32 Trade_ID, APlayerState* PlayerID, FName ItemIDA, FName ItemIDB);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Trading")
-    void EndTrade();
+    void RejectOffer(int32 Trade_ID, FUniqueNetIdRepl PlayerID);
+
+    UFUNCTION(BlueprintCallable, Category = "MP_Trading")
+    void EndTrade(int32 Trade_ID);
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Trading")
-    ETradeState GetTradeState() const { return CurrentState; }
+    FPlayerTradeOffer GetOfferFromPlayer(int32 Trade_ID, FString Player) const;
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Trading")
-    FTradeOffer GetOfferFromPlayer(FString Player) const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Trading")
-    bool IsPlayerInTrade(FString Player) const;
+    bool IsPlayerInTrade(FUniqueNetIdRepl PlayerID) const;
 
 private:
-    UPROPERTY()
-    FString PlayerA;
 
     UPROPERTY()
-    FString PlayerB;
+    TMap<int32, FTradeOffer>OfferA;
 
     UPROPERTY()
-    FTradeOffer OfferA;
+    TMap<int32, FTradeOffer>OfferB;
 
     UPROPERTY()
-    FTradeOffer OfferB;
+    TMap<int32, FExchangeTradeOffer>PlayerOfferA;
 
     UPROPERTY()
-    ETradeState CurrentState;
+    TMap<int32, FExchangeTradeOffer>PlayerOfferB;
 
-    void ResetTrade();
-	
+    UPROPERTY()
+    TMap<int32, FPlayerTradeOffer>PlayerTradeA;
+
+    UPROPERTY()
+    TMap<int32, FPlayerTradeOffer>PlayerTradeB;
+
+
+    UPROPERTY()
+    TMap<int32,FTradeSession>ActiveTrades;
+
+    UPROPERTY()
+    TMap<int32, FTradePlayer>TradesList;
+
 };
