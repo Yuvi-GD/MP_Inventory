@@ -3,7 +3,7 @@
 
 #include "Database/MP_InventoryStruct.h"
 
-FMP_InventoryStruct::FMP_InventoryStruct()
+FMP_InventoryItem::FMP_InventoryItem()
 {
     ItemID = FName();
     Quantity = 1;
@@ -11,7 +11,7 @@ FMP_InventoryStruct::FMP_InventoryStruct()
     Icon = nullptr;
 }
 
-FMP_InventoryStruct::~FMP_InventoryStruct()
+FMP_InventoryItem::~FMP_InventoryItem()
 {
 }
 

@@ -18,7 +18,7 @@ void UMP_InventorySubsystem::Deinitialize()
     Super::Deinitialize();
 }
 
-void UMP_InventorySubsystem::AddItem(FMP_InventoryStruct Item)
+void UMP_InventorySubsystem::AddItem(FMP_InventoryItem Item)
 {
     FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
 
@@ -42,7 +42,7 @@ void UMP_InventorySubsystem::AddItem(FMP_InventoryStruct Item)
     }
 
 
-    for (FMP_InventoryStruct& ExistingItem : InventoryItems)
+    for (FMP_InventoryItem& ExistingItem : InventoryItems)
     {
         if (ExistingItem.ItemID == Item.ItemID)
         {
@@ -100,7 +100,7 @@ void UMP_InventorySubsystem::RemoveItemByIndex(int32 Index, int32 QuantityToRemo
     }
 }
 
-void UMP_InventorySubsystem::RemoveItem(FMP_InventoryStruct Item, int32 QuantityToRemove)
+void UMP_InventorySubsystem::RemoveItem(FMP_InventoryItem Item, int32 QuantityToRemove)
 {
     FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
 
@@ -136,7 +136,7 @@ void UMP_InventorySubsystem::RemoveItem(FMP_InventoryStruct Item, int32 Quantity
     }
 }
 
-void UMP_InventorySubsystem::ReplaceItemByIndex(int32 Index, FMP_InventoryStruct NewItem)
+void UMP_InventorySubsystem::ReplaceItemByIndex(int32 Index, FMP_InventoryItem NewItem)
 {
     FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
 
@@ -156,7 +156,7 @@ void UMP_InventorySubsystem::ReplaceItemByIndex(int32 Index, FMP_InventoryStruct
     }
 }
 
-void UMP_InventorySubsystem::ReplaceItem(FMP_InventoryStruct OldItem, FMP_InventoryStruct NewItem)
+void UMP_InventorySubsystem::ReplaceItem(FMP_InventoryItem OldItem, FMP_InventoryItem NewItem)
 {
     FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
 
@@ -199,7 +199,7 @@ void UMP_InventorySubsystem::UpdateItemTags(FName ItemID, FGameplayTag TagToRemo
 {
     FScopeLock Lock(&InventoryCriticalSection); // Thread Safety
 
-    for (FMP_InventoryStruct& Item : InventoryItems)
+    for (FMP_InventoryItem& Item : InventoryItems)
     {
         if (Item.ItemID == ItemID)
         {
@@ -214,18 +214,18 @@ void UMP_InventorySubsystem::UpdateItemTags(FName ItemID, FGameplayTag TagToRemo
                 {
                     SaveInventory(DefaultSlotName);
                 }
+                return;
             }
-            return;
         }
     }
 }
 
 //-------------------------------------------- PURE FUCNTIONS --------------------------------------------------//
 
-TArray<FMP_InventoryStruct> UMP_InventorySubsystem::GetItemsByTag(FGameplayTagContainer Tags, bool bRequireAllTags) const
+TArray<FMP_InventoryItem> UMP_InventorySubsystem::GetItemsByTag(FGameplayTagContainer Tags, bool bRequireAllTags) const
 {
-    TArray<FMP_InventoryStruct> FilteredItems;
-    for (const FMP_InventoryStruct& Item : InventoryItems)
+    TArray<FMP_InventoryItem> FilteredItems;
+    for (const FMP_InventoryItem& Item : InventoryItems)
     {
         if (bRequireAllTags)
         {
@@ -245,7 +245,7 @@ TArray<FMP_InventoryStruct> UMP_InventorySubsystem::GetItemsByTag(FGameplayTagCo
     return FilteredItems;
 }
 
-UTexture* UMP_InventorySubsystem::LoadItemIcon(const FMP_InventoryStruct& Item)
+UTexture* UMP_InventorySubsystem::LoadItemIcon(const FMP_InventoryItem& Item)
 {
     if (!Item.Icon.IsNull())
     {
@@ -254,7 +254,7 @@ UTexture* UMP_InventorySubsystem::LoadItemIcon(const FMP_InventoryStruct& Item)
     return nullptr;
 }
 
-bool UMP_InventorySubsystem::HasSpaceForItem(FMP_InventoryStruct Item) const
+bool UMP_InventorySubsystem::HasSpaceForItem(FMP_InventoryItem Item) const
 {
     constexpr int32 MaxInventorySize = 100; // Hard limit for now
     return InventoryItems.Num() < MaxInventorySize;
@@ -264,7 +264,7 @@ void UMP_InventorySubsystem::DropItem(int32 Index, int32 Quantity)
 {
     if (InventoryItems.IsValidIndex(Index))
     {
-        FMP_InventoryStruct& Item = InventoryItems[Index];
+        FMP_InventoryItem& Item = InventoryItems[Index];
         if (!Item.Tags.HasTag(FGameplayTag::RequestGameplayTag("Item.Private")))
         {
             RemoveItemByIndex(Index, Quantity);
@@ -315,22 +315,22 @@ void UMP_InventorySubsystem::LoadInventory(const FString& PlayerID)
     }
 }
 
-FMP_InventoryStruct UMP_InventorySubsystem::GetItemByItemID(FName ItemID) const
+FMP_InventoryItem UMP_InventorySubsystem::GetItemByItemID(FName ItemID) const
 {
-    for (const FMP_InventoryStruct& Item : InventoryItems)
+    for (const FMP_InventoryItem& Item : InventoryItems)
     {
         if (Item.ItemID == ItemID)
         {
             return Item;
         }
     }
-    return FMP_InventoryStruct();
+    return FMP_InventoryItem();
 }
 
-TArray<FMP_InventoryStruct> UMP_InventorySubsystem::GetItemsByItemName(FString ItemName) const
+TArray<FMP_InventoryItem> UMP_InventorySubsystem::GetItemsByItemName(FString ItemName) const
 {
-    TArray<FMP_InventoryStruct> FoundItems;
-    for (const FMP_InventoryStruct& Item : InventoryItems)
+    TArray<FMP_InventoryItem> FoundItems;
+    for (const FMP_InventoryItem& Item : InventoryItems)
     {
         if (Item.DisplayName.Contains(ItemName))
         {

@@ -432,7 +432,7 @@ void UMP_TradingManager::AcceptExchageOffer(int32 Trade_ID, APlayerState* Player
 
 void UMP_TradingManager::RejectOffer(int32 Trade_ID, FUniqueNetIdRepl PlayerID)
 {
-    FMP_InventoryStruct Curentitem;
+    FMP_InventoryItem Curentitem;
     FTradeSession CurrentSession;
     CurrentSession = ActiveTrades[Trade_ID];
     if (CurrentSession.PlayerB == PlayerID)

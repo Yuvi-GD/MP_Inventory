@@ -46,7 +46,7 @@ struct FTradeOffer
     FUniqueNetIdRepl OfferingPlayer;
 
     UPROPERTY(BlueprintReadWrite, Category = "MP_Trading")
-    TArray<FMP_InventoryStruct> OfferedItems;
+    TArray<FMP_InventoryItem> OfferedItems;
 };
 
 USTRUCT(BlueprintType)

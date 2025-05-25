@@ -20,7 +20,7 @@ class MP_INVENTORY_API UMP_InventorySubsystem : public UGameInstanceSubsystem
 
 protected:
     UPROPERTY(BlueprintReadOnly, Category = "MP_Inventory|Subsystem")
-    TArray<FMP_InventoryStruct> InventoryItems;
+    TArray<FMP_InventoryItem> InventoryItems;
 
     // Flag to control automatic saving after each operation
     UPROPERTY(BlueprintReadWrite, Category = "MP_Inventory|Subsystem")
@@ -49,19 +49,19 @@ public:
     virtual void Deinitialize() override;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    void AddItem(FMP_InventoryStruct Item);
+    void AddItem(FMP_InventoryItem Item);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
     void RemoveItemByIndex(int32 Index, int32 QuantityToRemove = 1);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    void RemoveItem(FMP_InventoryStruct Item, int32 QuantityToRemove = 1);
+    void RemoveItem(FMP_InventoryItem Item, int32 QuantityToRemove = 1);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    void ReplaceItemByIndex(int32 Index, FMP_InventoryStruct NewItem);
+    void ReplaceItemByIndex(int32 Index, FMP_InventoryItem NewItem);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    void ReplaceItem(FMP_InventoryStruct OldItem, FMP_InventoryStruct NewItem);
+    void ReplaceItem(FMP_InventoryItem OldItem, FMP_InventoryItem NewItem);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
     void SwapItems(int32 IndexA, int32 IndexB);
@@ -72,22 +72,22 @@ public:
     //-------------------------- PURE FUCNTIONS --------------------------------//
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Subsystem")
-    TArray<FMP_InventoryStruct> GetItemsByTag(FGameplayTagContainer Tag, bool bRequireAllTags) const;
+    TArray<FMP_InventoryItem> GetItemsByTag(FGameplayTagContainer Tag, bool bRequireAllTags) const;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    FMP_InventoryStruct GetItemByItemID(FName ItemID) const;
+    FMP_InventoryItem GetItemByItemID(FName ItemID) const;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    TArray<FMP_InventoryStruct> GetItemsByItemName(FString ItemName) const;
+    TArray<FMP_InventoryItem> GetItemsByItemName(FString ItemName) const;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    const TArray<FMP_InventoryStruct>& GetAllItems() const { return InventoryItems; }
+    const TArray<FMP_InventoryItem>& GetAllItems() const { return InventoryItems; }
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    UTexture* LoadItemIcon(const FMP_InventoryStruct& Item);
+    UTexture* LoadItemIcon(const FMP_InventoryItem& Item);
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
-    bool HasSpaceForItem(FMP_InventoryStruct Item) const;
+    bool HasSpaceForItem(FMP_InventoryItem Item) const;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Subsystem")
     void DropItem(int32 Index, int32 Quantity);

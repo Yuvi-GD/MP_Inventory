@@ -19,7 +19,7 @@ public:
 
 
     UPROPERTY(BlueprintReadWrite, Category = "MP_Inventory|Save")
-    TArray<FMP_InventoryStruct> InventoryItems;
+    TArray<FMP_InventoryItem> InventoryItems;
 
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Save")
     bool SaveToSlot(FString SlotName);

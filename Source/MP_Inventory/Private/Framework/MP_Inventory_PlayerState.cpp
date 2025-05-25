@@ -48,8 +48,8 @@ void AMP_Inventory_PlayerState::OnAcceptExchageOffer_Implementation(int32 Trade_
     {
         UE_LOG(LogTemp, Warning, TEXT("Player ID is matching with the PlayerID in the Player State Accept Make Offer"));
         UMP_InventoryComponent* OtherMP_Inventory = UMP_Inventory_BFL::GetInventoryByActor(UserId);
-        FMP_InventoryStruct ItemA = MP_Inventory->GetItemByItemID(ItemIDA);
-        FMP_InventoryStruct ItemB = OtherMP_Inventory->GetItemByItemID(ItemIDB);
+        FMP_InventoryItem ItemA = MP_Inventory->GetItemByItemID(ItemIDA);
+        FMP_InventoryItem ItemB = OtherMP_Inventory->GetItemByItemID(ItemIDB);
         MP_Inventory->RemoveItemByID(ItemIDA);
         ItemB.Quantity = 1;
         MP_Inventory->AddItem(ItemB);
@@ -58,7 +58,10 @@ void AMP_Inventory_PlayerState::OnAcceptExchageOffer_Implementation(int32 Trade_
         ItemA.Quantity = 1;
         OtherMP_Inventory->AddItem(ItemA);
     }
-    UE_LOG(LogTemp, Error, TEXT("Player ID is Not matching with the PlayerID in the Player State Accept Make Offer"));
+    else 
+    {
+        UE_LOG(LogTemp, Error, TEXT("Player ID is Not matching with the PlayerID in the Player State Accept Make Offer"));
+    }
 }
 
 void AMP_Inventory_PlayerState::OnRequestExchageOffer_Implementation(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemIDA, FName ItemIDB)

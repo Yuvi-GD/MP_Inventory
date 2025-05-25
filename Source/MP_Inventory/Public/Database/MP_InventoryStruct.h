@@ -11,7 +11,7 @@
  */
 
 USTRUCT(BlueprintType)
-struct FMP_InventoryStruct
+struct FMP_InventoryItem
 {
 public:
     GENERATED_BODY()
@@ -35,10 +35,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
     TSoftObjectPtr<UTexture> Icon;
 
-	FMP_InventoryStruct();
-	~FMP_InventoryStruct();
+    FMP_InventoryItem();
+	~FMP_InventoryItem();
 
-    bool operator==(const FMP_InventoryStruct& Other) const
+    bool operator==(const FMP_InventoryItem& Other) const
     {
         return ItemID == Other.ItemID; // Compare by ItemID only—adjust if needed
     }
@@ -66,4 +66,31 @@ public:
     FMP_ItemDefinition();
     ~FMP_ItemDefinition();
 
+};
+
+USTRUCT(BlueprintType)
+struct FInventorySnapshot
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FString PlayerId;
+
+    UPROPERTY()
+    TArray<FMP_InventoryItem> Items;
+
+    UPROPERTY()
+    FDateTime SavedAt;
+};
+
+USTRUCT()
+struct FItemOwnershipIndexEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FName ItemId;
+
+    UPROPERTY()
+    TSet<FString> PlayerIds;
 };
