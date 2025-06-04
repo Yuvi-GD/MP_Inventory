@@ -42,7 +42,7 @@
 # 📥 Installation
 1. **Download or Clone** this repository:
    ```bash
-   git clone https://github.com/YourGitHubName/MP_Inventory.git
+   git clone https://github.com/Yuvi-GD/MP_Inventory.git
    ```
 
 2. **Add Plugin to Your Unreal Engine Project**:
