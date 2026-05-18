@@ -4,6 +4,8 @@
 #include "Framework/MP_Inventory_BFL.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/GameStateBase.h" // Add this include to resolve the incomplete type error
+#include "GameplayTagsManager.h"
 
 
 UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryByActor(AActor* Actor)
@@ -15,19 +17,7 @@ UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryByActor(AActor* Actor)
         return nullptr;
     }
 
-    // Step 2: Check if the actor has a PlayerState
-    APlayerState* PlayerState = Cast<APlayerState>(Actor);
-    if (PlayerState)
-    {
-        // Step 3: Check if the PlayerState is of type AMP_Inventory_PlayerState
-        AMP_Inventory_PlayerState* InventoryPlayerState = Cast<AMP_Inventory_PlayerState>(PlayerState);
-        if (InventoryPlayerState && InventoryPlayerState->MP_Inventory)
-        {
-            return InventoryPlayerState->MP_Inventory;
-        }
-    }
-
-    // Step 4: If no valid PlayerState, check if the actor itself has the Inventory component
+    // Step 2: If no valid PlayerState, check if the actor itself has the Inventory component
     UMP_InventoryComponent* MP_Inventory = Actor->FindComponentByClass<UMP_InventoryComponent>();
     if (!MP_Inventory)
     {
@@ -37,21 +27,21 @@ UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryByActor(AActor* Actor)
     return MP_Inventory; // This will be nullptr if nothing was found
 }
 
-AMP_Inventory_PlayerState* UMP_Inventory_BFL::GetInventoryPlayerState(const UObject* WorldContextObject)
-{
-    if (!WorldContextObject) {
-        return nullptr;
-    }
-
-    UWorld* World = WorldContextObject->GetWorld();
-    if (!World) {
-        return nullptr;
-    }
-
-    APlayerController* PlayerCtrlr = UGameplayStatics::GetPlayerController(WorldContextObject,0);
-
-    return Cast<AMP_Inventory_PlayerState>(PlayerCtrlr->PlayerState);
-}
+//AMP_Inventory_PlayerState* UMP_Inventory_BFL::GetInventoryPlayerState(const UObject* WorldContextObject)
+//{
+//    if (!WorldContextObject) {
+//        return nullptr;
+//    }
+//
+//    UWorld* World = WorldContextObject->GetWorld();
+//    if (!World) {
+//        return nullptr;
+//    }
+//
+//    APlayerController* PlayerCtrlr = UGameplayStatics::GetPlayerController(WorldContextObject,0);
+//
+//    return Cast<AMP_Inventory_PlayerState>(PlayerCtrlr->PlayerState);
+//}
 
 APlayerState* UMP_Inventory_BFL::FindPlayerStateByUniqueNetId(UObject* WorldContextObject, const FUniqueNetIdRepl& TargetUniqueNetId)
 {
@@ -109,7 +99,41 @@ FString UMP_Inventory_BFL::UniqueNetIdToString(UObject* WorldContextObject, cons
     return TargetUniqueNetId.GetUniqueNetId()->ToString();
 }
 
-AMP_Inventory_PlayerState* UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId)
+//APlayerState* UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId)
+//{
+//    if (!WorldContextObject || TargetPersistentPlayerId.IsEmpty())
+//    {
+//        return nullptr;
+//    }
+//
+//    UWorld* World = WorldContextObject->GetWorld();
+//    if (!World)
+//    {
+//        return nullptr;
+//    }
+//
+//    // Loop through all Player Controllers in the world
+//    for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+//    {
+//        APlayerController* PlayerController = Iterator->Get();
+//        if (!PlayerController && !PlayerController->PlayerState)
+//        {
+//            continue;
+//        }
+//
+//        // Get the Unique Net ID from the Player State
+//        //const FString CurrentPersistentPlayerId = PlayerState->PersistentPlayerId;
+//        //if (CurrentPersistentPlayerId == TargetPersistentPlayerId)
+//        //{
+//        //    return PlayerState;
+//        //}
+//    }
+//
+//    // Return nullptr if no matching Player State is found
+//    return nullptr;
+//}
+
+UMP_InventoryComponent* UMP_Inventory_BFL::FindInventoryComponentByUniqueId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId)
 {
     if (!WorldContextObject || TargetPersistentPlayerId.IsEmpty())
     {
@@ -122,29 +146,70 @@ AMP_Inventory_PlayerState* UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerI
         return nullptr;
     }
 
-    // Loop through all Player Controllers in the world
-    for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+    for (APlayerState* PS : World->GetGameState()->PlayerArray)
     {
-        APlayerController* PlayerController = Iterator->Get();
-        if (!PlayerController)
-        {
-            continue;
-        }
+        if (!IsValid(PS)) continue;
+        auto* Inventory = PS->FindComponentByClass<UMP_InventoryComponent>();
+		if (Inventory->UniqueId == TargetPersistentPlayerId)
+		{
+			return Inventory;
+		}
+    }
+    return nullptr;
+}
 
-        AMP_Inventory_PlayerState* PlayerState = Cast<AMP_Inventory_PlayerState>(PlayerController->PlayerState);
-        if (!PlayerState)
-        {
-            continue;
-        }
 
-        // Get the Unique Net ID from the Player State
-        const FString CurrentPersistentPlayerId = PlayerState->PersistentPlayerId;
-        if (CurrentPersistentPlayerId == TargetPersistentPlayerId)
-        {
-            return PlayerState;
-        }
+FGameplayTag UMP_Inventory_BFL::FNameToGameplayTag(UObject* WorldContextObject, const FName TagName)
+{
+    if (!WorldContextObject)
+    {
+        return FGameplayTag::EmptyTag;
     }
 
-    // Return nullptr if no matching Player State is found
-    return nullptr;
+    UWorld* World = WorldContextObject->GetWorld();
+    if (!World)
+    {
+        return FGameplayTag::EmptyTag;
+    }
+
+    // Convert FName to GameplayTag using RequestGameplayTag
+    FGameplayTag RequestedTag = UGameplayTagsManager::Get().RequestGameplayTag(TagName, false);
+
+    // Validate whether the requested tag is actually registered
+    if (RequestedTag.IsValid())
+    {
+        return RequestedTag;
+    }
+    else
+    {
+        return FGameplayTag::EmptyTag; // This handles the missing return path
+    }
+}
+
+TArray<FGameplayTag> UMP_Inventory_BFL::GetAllGameplayTags(UObject* WorldContextObject)
+{
+    if (!WorldContextObject)
+    {
+        return TArray<FGameplayTag>();
+    }
+
+    UWorld* World = WorldContextObject->GetWorld();
+    if (!World)
+    {
+        return TArray<FGameplayTag>();
+    }
+
+    FString Prefix = "Item.";
+    TArray<FGameplayTag> FilteredTags;
+    FGameplayTagContainer AllTags;
+    UGameplayTagsManager::Get().RequestAllGameplayTags(AllTags, false);
+
+    for (const FGameplayTag& Tag : AllTags)
+    {
+        if (Tag.ToString().StartsWith(Prefix))
+        {
+            FilteredTags.Add(Tag);
+        }
+    }
+    return FilteredTags;
 }

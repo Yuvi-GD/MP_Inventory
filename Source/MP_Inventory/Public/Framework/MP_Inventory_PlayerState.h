@@ -18,43 +18,53 @@ class MP_INVENTORY_API AMP_Inventory_PlayerState : public APlayerState
 
 public:
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
-	UMP_InventoryComponent* MP_Inventory;
+	//UPROPERTY(Replicated,VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+	//UMP_InventoryComponent* MP_Inventory;
 
-	AMP_Inventory_PlayerState();
+	//AMP_Inventory_PlayerState();
 
-	UPROPERTY(Replicated, BlueprintReadWrite, SaveGame, Category = "MP_Inventory|PlayerState")
-	FString PersistentPlayerId;
-	
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|PlayerState")
-	int32 TradeId;
+	//UPROPERTY(Replicated, BlueprintReadWrite, SaveGame, Category = "MP_Inventory|PlayerState")
+	//FString PersistentPlayerId;
+	//
+	//UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|PlayerState")
+	//int32 TradeId;
 
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|PlayerState")
-	FString OtherPlayerId;
+	//UPROPERTY(Replicated, BlueprintReadWrite, Category = "MP_Inventory|PlayerState")
+	//FString TradingId;
 
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|PlayerState")
-	AMP_Inventory_PlayerState* OtherUserId;
+	//UPROPERTY(Replicated, BlueprintReadWrite, Category = "MP_Inventory|PlayerState")
+	//FString OtherPlayerId;
 
-	virtual void BeginPlay() override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	//UPROPERTY(Replicated, BlueprintReadWrite, Category = "MP_Inventory|PlayerState")
+	//AMP_Inventory_PlayerState* OtherUserId;
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnAcceptItemOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemID);
+	//virtual void BeginPlay() override;
+	//virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnRequestItemOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemID);
+	//UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|PlayerState")
+	//void SetMyPlayerName(const FString& NewName);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnAcceptExchageOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemIDA, FName ItemIDB);
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnAcceptItemOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemID);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnRequestExchageOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemIDA, FName ItemIDB);
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnRequestItemOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemID);
 
-	UFUNCTION( BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnAcceptTrade(int32 Trade_ID, AMP_Inventory_PlayerState* UserId);
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnAcceptExchageOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemIDA, FName ItemIDB);
 
-	//Calling From Server and Run on Server as well
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
-	void OnRequestTrade(AMP_Inventory_PlayerState* UserId);
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnRequestExchageOffer(int32 Trade_ID, AMP_Inventory_PlayerState* UserId, FName ItemIDA, FName ItemIDB);
+
+	//UFUNCTION( BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnAcceptTrade(int32 Trade_ID, AMP_Inventory_PlayerState* UserId);
+
+	////Calling From Server and Run on Server as well
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnRequestTrade(AMP_Inventory_PlayerState* UserId);
+
+	////Calling From Server and Run on Server as well
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|PlayerState")
+	//void OnRefreshTrade();
 
 };
