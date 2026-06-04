@@ -1,94 +1,48 @@
----
+# MP_Inventory
 
-# MP_Inventory - Multiplayer Inventory Plugin for Unreal Engine
+**MP_Inventory** is a fully replicated multiplayer inventory and trading system for **Unreal Engine**. It provides robust item storage, access control, and a dynamic economy system. Designed to be highly modular, it relies on Unreal's Subsystem architecture to keep your project clean while exposing everything seamlessly to both C++ and Blueprints.
 
-  MP_Inventory is a powerful multiplayer-ready inventory system for Unreal Engine, built with full replication support. It allows storing, managing, and sharing items with a robust tag system, private/public access control, and persistent item data. Designed to simplify multiplayer item management, it's highly modular, extendable, and open-source.
+## Key Features
 
----
+* **Multiplayer Ready:** Fully replicated inventory and trading mechanics designed to stay synchronized across clients and the server.
+* **Subsystem Architecture:** Utilizes Unreal Subsystems for global access, preventing logic bloat in your GameModes or PlayerControllers.
+* **Advanced Tagging:** Built-in tag filtering to categorize, query, and retrieve specific items instantly.
+* **Trading and Economy:** Features `MP_TradingManager` for secure player-to-player exchanges and `MP_EconomySystem` to dynamically adjust prices based on trade volume and demand.
+* **Access Control:** Assign private or public visibility flags to control who can view specific inventory items.
+* **Secure Metadata Tracking:** `MP_ItemMetadataStorage` tracks item trade history and pricing strictly server-side to prevent client tampering.
+* **Data Persistence:** Subsystem-backed storage ensures items persist reliably.
+* **Live UI Sync:** Event dispatchers automatically broadcast state changes for real-time UMG/Slate updates.
+* **Dual API:** All inventory manipulation methods (add, remove, swap, replace, exchange) are fully exposed to both Blueprints and C++.
 
-## 🚀 Features
+## Installation
 
-- ✅ **Multiplayer and Replication Ready**: Fully replicated inventory system designed for multiplayer games.
-- 📁 **Persistent Storage**: Items persist in subsystem-backed storage for seamless inventory management.
-- 🏷️ **Advanced Tag System**: Built-in tag-based filtering to manage and retrieve specific item types.
-- 🔒 **Private and Public Item Support**: Control item visibility with private and public inventory settings.
-- 🔄 Item Exchange & Trading – Secure player-to-player and player-to-marketplace trading.
-- 💰 Dynamic Economy System – Item prices adjust based on trade volume & demand.
-- 📊 Historical Metadata Storage – Tracks item trade history and price fluctuations.
-- ⚙️ **Subsystem-Based Architecture**: Clean, modular approach using Unreal's subsystem for flexibility and scalability.
-- 🛠 **Blueprint & C++ API Support**: Exposes inventory and trading functions to Blueprints.
-- 🔁 **Real-Time UI Sync**: Inventory changes trigger event dispatchers for live UI updates.
-
----
-
-## 🧩 Plugin Code Features
-
-- **Subsystem-based inventory management** for global access and modular design.
-- **Built-in tag system** to categorize and filter inventory items.
-- **Replicated item storage** to ensure all clients and servers remain synchronized.
-- **Event dispatchers** for item update notifications, allowing easy UI and logic binding.
-- **Inventory manipulation methods**: Add, remove, swap, replace, and exchange items.
-- **Access control** via private/public flags for inventory visibility.
-- **MP_ItemDefinitionStorage** Stores item definitions and custom attributes.
-- **MP_ItemMetadataStorage** Tracks item trade history, pricing, and metadata. Server-side only to prevent tampering.
-- **Trading Manager** is Responsible For Trade Item through Player or non Player.
-- **MP_TradeExchange** Handles manual & auto-listing of public items on the trade system.
-- **MP_ItemTrackerSubsystem** Maps ItemID → PlayerID for item searching and trading.
-- **MP_EconomySystem** Adjusts item prices dynamically based on trading trends.
-
----
-
-## 🛫 Getting Started
-# 📥 Installation
-1. **Download or Clone** this repository:
+1. **Clone the repository:** 
    ```bash
    git clone https://github.com/Yuvi-GD/MP_Inventory.git
    ```
+2. **Add to project:** Copy the `MP_Inventory` folder into your Unreal Engine project's `Plugins` directory.
+3. **Enable the plugin:** Open your project, navigate to **Edit > Plugins**, search for MP_Inventory, and check the enable box.
+4. **Restart:** Restart the engine to compile and load the plugin module.
 
-2. **Add Plugin to Your Unreal Engine Project**:
-   - Copy the `MP_Inventory` folder to your project's `Plugins` directory.
-   - Or install as a marketplace plugin if available (future support).
+## Getting Started
 
-3. **Enable Plugin**:
-   - Open your project in Unreal Engine.
-   - Go to `Edit` ➡ `Plugins` ➡ Search for **MP_Inventory** and enable it.
-   - Restart the engine if prompted.
+1. Attach the `MP_InventoryComponent` to your Player Character or Player Controller.
+2. Configure `MP_ItemDefinitionStorage` with your custom item definitions and attributes.
+3. Use `MP_TradeExchange` to handle manual or automatic listing of public items on the market.
+4. Execute secure trades by calling `MP_TradingManager` functions via Blueprints or C++.
+5. Track specific items across the server using the `MP_ItemTrackerSubsystem`.
 
-# 🛠 Usage
+## Contributing
 
-1️⃣ Attach **MP_InventoryComponent** to Player Characters.
+Pull requests are always welcome. Whether it is a small bug fix, a performance tweak, or expanding the API, your contributions are appreciated. 
 
-2️⃣ Set up **MP_ItemDefinitionStorage** to define items.
+Here is the standard process to get your changes merged:
 
-3️⃣ Use **MP_TradingManager** for secure trades.
+1. **Open an issue first:** For major features or architectural changes, please open an issue to discuss it before you start coding. This ensures we are on the same page and saves everyone time.
+2. **Fork and branch:** Create a fork and do your work on a dedicated feature branch.
+3. **Follow the style:** Keep your C++ and Blueprint code consistent with the existing project structure and formatting conventions.
+4. **Submit a PR:** Keep your pull request focused on a single issue and explain exactly what your code does.
 
-4️⃣ Utilize **MP_TradeExchange** for listing items.
+## License
 
-5️⃣ Access inventory and trading functions in Blueprints.
-
----
-
-## 🤝 Contributions
-
-We warmly welcome contributions from the community!  
-If you want to add features, fix bugs, or improve documentation, feel free to fork this repository and submit a pull request.  
-**Your support helps keep this project alive and evolving!**
-
-Also, feel free to open **Issues** for suggestions, questions, or bugs.
-
----
-
-## 📜 License
-
-This plugin is licensed under the **GNU General Public License v3.0**.  
-You are free to use, modify, and distribute this plugin under the terms of the GNU GPL v3.0.  
-Please refer to the [LICENSE](./LICENSE) file for more details.
-
----
-
-## 💬 Feedback & Suggestions
-
-Would you like to add any additional sections or details to the README file?  
-Feel free to open an **[Issue](https://github.com/Yuvi-GD/MP_Inventory/issues)** to share your thoughts!
-
----
+This plugin is licensed under the GNU General Public License v3.0. See the [LICENSE](./LICENSE) file for full details.
