@@ -1,127 +1,331 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Database/MP_InventoryStruct.h"
 #include "Database/MP_InventoryFastArray.h"
-#include "Core/MP_ItemDefinitionStorage.h"
+#include "Core/MP_ItemRegistry.h"
 #include "Components/ActorComponent.h"
 #include "MP_InventoryComponent.generated.h"
 
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MP_INVENTORY_API UMP_InventoryComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
-	UMP_InventoryComponent();
+public:
 
-    //DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
+    UMP_InventoryComponent();
+
+    // =========================================================================
+    //  DELEGATES
+    // =========================================================================
+
+    /**
+     * Fired on both server and client whenever the inventory changes.
+     * Index is SlotIndex for Removed, ArrayIndex for Added/Updated (-1 on full refresh).
+     */
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, EInventoryDelta, Delta, int32, Index);
-
-    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Component")
+    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryUpdated OnInventoryUpdated;
 
-    // Called when the game starts
-	virtual void BeginPlay() override;
-    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
-    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Component")
-    void SaveInventory(const FString& PlayerID);
-
-    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Component")
-    void LoadInventory(const FString& PlayerID);
-
-    UFUNCTION(Server, Reliable, Category = "MP_Inventory|Component")
-    void ServerSyncFromClient(const TArray<FMP_InventoryItem>& Items);
-
-    /*********************  Server-side: Modify local inventory  ***********************/
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void AddItem(FMP_InventoryItem Item);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void RemoveItemByIndex(int32 Index, int32 Quantity =1);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void RemoveItemByID(FName ItemID, int32 Quantity =1);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void ReplaceItemByIndex(int32 Index, FMP_InventoryItem NewItem);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void ReplaceItem(FMP_InventoryItem OldItem, FMP_InventoryItem NewItem);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void SwapItems(int32 IndexA, int32 IndexB);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void UpdateItemTags(FName ItemID, FGameplayTag TagToRemove, FGameplayTag TagToAdd);
-
-    // Server-side: Interact with other players
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void DropItem(int32 Index, int32 Quantity);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void RequestItemFromPlayer(UMP_InventoryComponent* TargetComponent, FName ItemID, int32 Quantity);
-
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Component")
-    void GiveItemToPlayer(UMP_InventoryComponent* TargetComponent, FMP_InventoryItem Item);
+    /** Fired when a trade requires payment processing. */
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProcessPayment, FString, TradeId, float, AmountToPay);
+    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
+    FOnProcessPayment OnProcessPayment;
 
 
-    //-------------------------- PURE FUCNTIONS --------------------------------//
-    
-    // Client-side getters (replicated data)
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    TArray<FMP_InventoryItem> GetItemsByTag(FGameplayTagContainer Tag, bool bRequireAllTags) const;
+    // =========================================================================
+    //  LIFECYCLE
+    // =========================================================================
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    FMP_InventoryItem GetItemByItemID(FName ItemID) const;
+    virtual void BeginPlay() override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    FMP_InventoryItem GetItemByIndex(int32 Index) const;
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    TArray<FMP_InventoryItem> GetItemsByItemName(FString ItemName) const;
+    // =========================================================================
+    //  CONFIGURATION  -  Set in editor or before first use
+    // =========================================================================
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
+    /**
+     * Generic owner identifier. Works for players, NPCs, chests, vendors - anything.
+     * Populate from PlayerState unique ID, a DataTable row name, or a GUID string cast.
+     * Use FName over FString: hash-stored, O(1) comparison, no heap allocation.
+     */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Replicated, Category = "MP_Inventory|Config")
+    FName OwnerID;
+
+    /**
+     * TRUE  = Fixed grid (Minecraft). Slot count is capped at MaxInventorySlots.
+     * FALSE = Infinite list (Skyrim). Items append without a slot ceiling.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
+    bool bUseStrictSlots = true;
+
+    /** Only meaningful when bUseStrictSlots is true. Must be >= 1. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config",
+        meta = (EditCondition = "bUseStrictSlots", ClampMin = "1"))
+    int32 MaxInventorySlots = 20;
+
+    /** When true, AddItem checks cumulative item weight against MaxWeightCapacity. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
+    bool bEnforceWeightLimit = false;
+
+    /** Only meaningful when bEnforceWeightLimit is true. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config",
+        meta = (EditCondition = "bEnforceWeightLimit", ClampMin = "0.0"))
+    float MaxWeightCapacity = 100.0f;
+
+    /** Save slot name for UGameplayStatics persistence. Override before calling Save/Load. */
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "MP_Inventory|Config")
+    FString SaveSlotName = "Inventory";
+
+    /** If true, the entire inventory is locked. Useful during active trade sessions to prevent race conditions. */
+    UPROPERTY(BlueprintReadWrite, Replicated, Category = "MP_Inventory|State")
+    bool bInventoryLocked = false;
+
+    // =========================================================================
+    //  SERVER COMMANDS  -  All writes are authority-only server RPCs
+    // =========================================================================
+
+    /**
+     * Primary add entry point. Handles stacking, stack overflow, and slot allocation.
+     *
+     * bPreferNewSlot = true  ? Allocates a fresh slot first. Any quantity that exceeds
+     *                          the stack limit spills into existing partial stacks.
+     *                          Use for: loot drops, pickup flow.
+     *
+     * bPreferNewSlot = false ? Merges into existing stacks of the same ItemID first.
+     *                          Remaining overflow allocates a new slot.
+     *                          Use for: crafting output, reward grants.
+     *
+     * Call CanAddItem first if you need to gate on success in Blueprint.
+     * AddItem is fire-and-forget by design; partial adds are not possible -
+     * the full quantity either fits or the operation is rejected.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
+
+    /**
+     * Removes Quantity from the item at ArrayIndex.
+     * If resulting quantity reaches zero, the slot is freed.
+     * Fails silently if the slot is locked or does not contain enough quantity.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void RemoveItem(int32 ArrayIndex, int32 Quantity = 1);
+
+    /**
+     * Removes every stack of ItemID across the entire inventory.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void RemoveAllItems(FName ItemID);
+
+    /**
+     * Removes a specific Quantity of ItemID starting from the first found stack.
+     * Cascades to subsequent stacks if the first stack doesn't hold enough.
+     * Fails if total quantity across all stacks is insufficient.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void RemoveItemByID(FName ItemID, int32 Quantity = 1);
+
+    /**
+     * Fully replaces the item at SlotIndex with NewItem.
+     * Intended for: crafting result injection, admin replacement, loot reroll.
+     * Fails if the target slot is locked.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void UpdateItemAtSlot(int32 SlotIndex, FMP_InventoryItem NewItem);
+
+    /**
+     * Swaps the contents of two slots.
+     * Works correctly when one or both slots are empty (effectively a move).
+     * Fails if either slot contains a locked item.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void SwapItems(int32 SlotIndexA, int32 SlotIndexB);
+
+    /**
+     * Splits QuantityToSplit from the source stack into a target slot.
+     *
+     * TargetSlotIndex = -1 ? auto-assigns next free slot via AllocateSlot().
+     *
+     * Target must be either:
+     *   a) Empty, or
+     *   b) The same ItemID with room left in its stack.
+     *
+     * Fails if:
+     *   - Source quantity <= QuantityToSplit (can't split a single unit or the full stack)
+     *   - Target holds a different ItemID
+     *   - Source or target slot is locked
+     *   - No free slots available (strict mode only)
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void SplitItem(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
+
+    /**
+     * Locks or unlocks the item at SlotIndex.
+     * Locked items reject: RemoveItem, UpdateItemAtSlot, SwapItems, SplitItem, AddQuantity.
+     * Lock is not replicated separately - it is part of FMP_InventoryItem and travels
+     * with the FastArray delta. Reads are always allowed on locked slots.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void SetItemLock(int32 SlotIndex, bool bLocked);
+
+    /**
+     * Reassigns all SlotIndexes to be contiguous starting from 0.
+     * Reclaims all gaps. Fires a full Refresh delta when complete.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void CompactSlots();
+
+
+    // =========================================================================
+    //  QUERIES  -  Read-only, callable on server and client
+    // =========================================================================
+
+    /**
+     * Primary slot lookup. This is what Blueprint UI should always use.
+     * Translates SlotIndex -> ArrayIndex via linear scan (strict) or direct index (infinite).
+     * Returns a default (empty) FMP_InventoryItem if the slot is empty.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    FMP_InventoryItem GetItemBySlotIndex(int32 SlotIndex) const;
+
+    /**
+     * Returns the first stack found for a given ItemID via linear scan.
+     * Useful when you know the item exists but not which slot it's in.
+     * Returns a default (empty) FMP_InventoryItem if not found.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    FMP_InventoryItem GetItemByID(FName ItemID) const;
+
+    /**
+     * Translates SlotIndex to ArrayIndex.
+     * Returns INDEX_NONE if the slot is not occupied.
+     * All FastArray calls must go through this before touching Items[].
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    int32 GetArrayIndexFromSlot(int32 SlotIndex) const;
+
+    /**
+     * Direct array index lookup.
+     * Fast O(1) query for UI items that already store their physical array index.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    FMP_InventoryItem GetItemByArrayIndex(int32 ArrayIndex) const;
+
+    /**
+     * Returns all SlotIndexes that currently hold the given ItemID.
+     * Uses a linear scan. O(N).
+     * Use for: checking total quantity across stacks, removing by ID, crafting checks.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    TArray<int32> GetAllSlotsForItem(FName ItemID) const;
+
+    /**
+     * Raw array access. Use for iteration only.
+     * Do NOT assume any ordering - array index has no semantic meaning.
+     * For slot-ordered display, iterate GetAllItems and sort by Item.SlotIndex.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
     const TArray<FMP_InventoryItem>& GetAllItems() const { return InventoryItems.Items; }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    const int32 GetLength() const { return InventoryItems.Items.Num(); }
+    /** Returns true if the slot is occupied. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    bool IsSlotOccupied(int32 SlotIndex) const;
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Component")
-    const FMP_InventoryItem GetLastItem() const { return InventoryItems.Items.Last(); }
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Replicated, Category = "MP_Inventory|Component")
-    FString UniqueId;
-
-    // Multicast RPC to broadcast to all clients
-    UFUNCTION(NetMulticast, Reliable)
-    void Multicast_BroadcastInventoryUpdate(const EInventoryDelta& Delta, const int32& Index=-1);
+    /** Returns true if the item at this slot exists and has bIsLocked = true. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    bool IsSlotLocked(int32 SlotIndex) const;
 
 
-    // Add to protected section
+    // =========================================================================
+    //  STATE ACCESSORS  -  Limit monitoring for UI (health bars, counters, etc.)
+    // =========================================================================
+
+    /** Number of slots currently holding at least one item. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    int32 GetUsedSlots() const { return UsedSlots; }
+
+    /**
+     * Remaining available slots.
+     * Returns TNumericLimits<int32>::Max() when bUseStrictSlots is false (infinite mode).
+     * UI should check bUseStrictSlots before displaying this value.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    int32 GetRemainingSlots() const;
+
+    /** Total weight of all current items. Updated on every Add/Remove. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    float GetCurrentWeight() const { return CurrentWeight; }
+
+    /**
+     * Remaining weight capacity.
+     * Returns TNumericLimits<float>::Max() when bEnforceWeightLimit is false.
+     * UI should check bEnforceWeightLimit before displaying this value.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    float GetRemainingWeight() const;
+
+    /** Total number of item entries in the array (occupied slots only, not slot count). */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    int32 GetItemCount() const { return InventoryItems.Items.Num(); }
+
+    /** Returns true if no more items can be added under current constraints. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
+    bool IsInventoryFull() const;
+
+    // =========================================================================
+    //  PERSISTENCE
+    // =========================================================================
+
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
+    void SaveInventory(const FString& PlayerID);
+
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
+    void LoadInventory(const FString& PlayerID);
+
+
+    // =========================================================================
+    //  INTERNAL BRIDGE  -  Not for Blueprint use
+    // =========================================================================
+
+    /**
+     * Called by FMP_InventoryArray callbacks to fire OnInventoryUpdated.
+     * Do not call this directly from game code.
+     */
+    void FireInventoryUpdate(EInventoryDelta Delta, int32 Index);
+
 protected:
 
-    //UPROPERTY(ReplicatedUsing = OnRep_InventoryItems, BlueprintReadOnly, Category = "MP_Inventory|Component")
-    //TArray<FMP_InventoryItem> InventoryItems;
+    // =========================================================================
+    //  REPLICATED STATE  -  Travels over the network
+    // =========================================================================
 
-    UFUNCTION()
-	void OnRep_InventoryItems();
-
-    // The FastArray inventory property, replicated with NetDeltaSerialize
+    /** The actual inventory data. NetDeltaSerialized - only dirty items replicate. */
     UPROPERTY(Replicated)
     FMP_InventoryArray InventoryItems;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "MP_Inventory|Component")
-    FString SaveSlotName = "Inventory";
+    /** Cumulative weight of all items. Updated on Add/Remove only. */
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|State")
+    float CurrentWeight = 0.0f;
 
-    // Called by FastArray to fire dispatcher/event
-    UFUNCTION()
-    void FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex);
+    /** Number of occupied slots. Updated on Add/Remove only. */
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|State")
+    int32 UsedSlots = 0;
+
+
+private:
+
+    // =========================================================================
+    //  INTERNAL HELPERS
+    // =========================================================================
+
+    /**
+     * Safe access to UMP_ItemRegistry subsystem.
+     * Returns nullptr and logs a warning if the subsystem is unavailable.
+     */
+    UMP_ItemRegistry* GetRegistry() const;
 };

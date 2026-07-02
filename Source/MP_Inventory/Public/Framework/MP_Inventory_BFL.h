@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MP_InventoryComponent.h" 
-#include "MP_Inventory_PlayerState.h"
+// #include "MP_Inventory_PlayerState.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "MP_Inventory_BFL.generated.h"
 
@@ -20,6 +20,9 @@ public:
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|FLibrary")
 	static UMP_InventoryComponent* GetInventoryByActor(AActor* Actor);
 
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
+	static UMP_InventoryComponent* GetInventoryComponent(UObject* WorldContextObject);
+
 
 	//UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
 	//static AMP_Inventory_PlayerState* GetInventoryPlayerState(const UObject* WorldContextObject);
@@ -31,7 +34,7 @@ public:
 	static FString UniqueNetIdToString(UObject* WorldContextObject, const FUniqueNetIdRepl& TargetUniqueNetId);
 
 	//UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
-	//static APlayerState* FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId);
+	//static AMP_Inventory_PlayerState* FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId);
 
 	UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
 	static UMP_InventoryComponent* FindInventoryComponentByUniqueId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId);
@@ -42,4 +45,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
 	static TArray<FGameplayTag> GetAllGameplayTags(UObject* WorldContextObject);
+
+	
+	// Helper to easily style an Image widget for rounded corners and hover states without Slate caching bugs
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|UI")
+	static FSlateBrush GetImageStyle(class UImage* TargetImage);
 };

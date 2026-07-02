@@ -1,11 +1,14 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright 2026 UVSquare. All Rights Reserved.
 
 
 #include "Core/MP_TradingManager.h"
-#include "Core/MP_InventoryAnalytics.h"
+#include "Core/MP_AnalyticsManager.h"
 #include "Interfaces/MP_TradeNotification_I.h"
 #include "Framework/MP_Inventory_BFL.h"
 #include "GameFramework/GameMode.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "Engine/DataTable.h"
 
 
 TWeakObjectPtr<UMP_TradingManager> UMP_TradingManager::SingletonInstance = nullptr;
@@ -81,12 +84,7 @@ void UMP_TradingManager::RequestTrade(const FString& PlayerAId, const FString& P
         return; // One trade per player
     }
 
-    FString NewID;
-    do
-    {
-        NewID = FGuid::NewGuid().ToString();
-    } while (PendingTrades.Contains(NewID) || ActiveTrades.Contains(NewID)); // Regenerate if duplicate
-
+    FString NewID= FGuid::NewGuid().ToString();
 
     // Generate new trade session but do NOT add to ActiveTrades yet
     FMP_TradeSession PendingSession;
@@ -106,70 +104,55 @@ void UMP_TradingManager::RequestTrade(const FString& PlayerAId, const FString& P
 
 void UMP_TradingManager::RespondTrade(const FString& TradeId, const bool bAccepted)
 {
-    UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RespondTrade instance address: %p | World: %s | ActiveTrades.Num: %d"), this, *GetWorld()->GetName(), ActiveTrades.Num());
-
-    FMP_TradeSession NewSession;
-    if (PendingTrades.Contains(TradeId))
+    FMP_TradeSession* Session = PendingTrades.Find(TradeId);
+    if (!Session)
     {
-        NewSession = PendingTrades[TradeId];
-		UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RespondTrade - Responding to trade %s"), *TradeId);
-    }
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RespondTrade - TradeId %s not found in pending trades"), *TradeId);
-		return; // Invalid trade ID
-	}
-
-    // Here we assume TradeId is empty for a new session, so reconstruct IDs
-    if (!bAccepted)
-    {
-        // Notify PlayerA of rejection (PlayerA is always the initiator)
-        NotifyParticipant(NewSession.PlayerAId, "TradeRejected", NewSession, nullptr, false);
-        NewSession.CurrentStatus = ETradeSessionStatus::Rejected;
-
-        // Analytics should be happen for rejected trades
-        UMP_InventoryAnalytics* Analytics = UMP_InventoryAnalytics::Get(this);
-        Analytics->AddTradeSession(NewSession.TradeId, NewSession.PlayerAId, NewSession.PlayerBId);
-        // Mark session as rejected; can add a custom flag/field in your analytics code.
-
-		PendingTrades.Remove(TradeId); // Remove from pending trades
-		UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RespondTrade - Trade session %s rejected by PlayerB"), *TradeId);
+        UE_LOG(LogTemp, Warning, TEXT("[MP_TradingManager] RespondTrade: TradeId '%s' not found in pending."), *TradeId);
         return;
     }
 
-    // At this point, both players agree—create session and TradeId
-    // BP/UI should supply PlayerAId (initiator) and PlayerBId (acceptor)
-    NewSession.CurrentStatus = ETradeSessionStatus::Accepted;
+    if (bAccepted)
+    {
+        // At this point, both players agree—create session and TradeId
+        // BP/UI should supply PlayerAId (initiator) and PlayerBId (acceptor)
+        Session->CurrentStatus = ETradeSessionStatus::Accepted;
 
-	// Add to active trades
-    ActiveTrades.Add(NewSession.TradeId, NewSession);
-	PendingTrades.Remove(TradeId); // Remove from pending trades
+        ActiveTrades.Add(Session->TradeId, *Session);
+	    PendingTrades.Remove(TradeId);
 
-    UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RespondTrade - Trade session created with ID: %s. ActiveTrades count: %d"), *NewSession.TradeId, ActiveTrades.Num());
-
-    // Notify both that trade started
-    NotifyParticipant(NewSession.PlayerAId, "TradeStarted", NewSession, nullptr, true);
-    //NotifyParticipant(NewSession.PlayerBId, "TradeStarted", NewSession, nullptr, true);
+        // Notify both that trade started
+        NotifyParticipant(Session->PlayerAId, "TradeStarted", *Session, nullptr, true);
+        UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RespondTrade - Trade session created with ID: %s. ActiveTrades count: %d"), *Session->TradeId, ActiveTrades.Num());
+    }
+    // Here we assume TradeId is empty for a new session, so reconstruct IDs
+    else
+    {
+        // Notify PlayerA of rejection (PlayerA is always the initiator)
+        Session->CurrentStatus = ETradeSessionStatus::Rejected;
+        NotifyParticipant(Session->PlayerAId, "TradeRejected", *Session, nullptr, false);
+        
+        // Analytics should be happen for rejected trades
+        UMP_AnalyticsManager* Analytics = UMP_AnalyticsManager::Get(this);
+        // Mark session as rejected; can add a custom flag/field in your analytics code.
+        Analytics->AddTradeSession(Session->TradeId, Session->PlayerAId, Session->PlayerBId);
+        
+		PendingTrades.Remove(TradeId);
+		UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::RespondTrade - Trade session %s rejected by PlayerB"), *TradeId);
+        return;
+    }
 }
 
 // ---- OFFER FLOW ----
 
 void UMP_TradingManager::SubmitOffer(const FString& TradeId, const FMP_TradeOffer& Offer)
 {
-    UE_LOG(LogTemp, Warning, TEXT("TradingManager instance address: %p | World: %s | ActiveTrades.Num: %d"), this, *GetWorld()->GetName(), ActiveTrades.Num());
-
-    if (!ActiveTrades.Contains(TradeId))
+    FMP_TradeSession* Session = ActiveTrades.Find(TradeId);
+    if (!Session)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SubmitOffer: TradeId %s not found in ActiveTrades || count: %d"), *TradeId, ActiveTrades.Num());
+        UE_LOG(LogTemp, Warning, TEXT("[MP_TradingManager] SubmitOffer: TradeId '%s' not active."), *TradeId);
         return;
     }
 
-    FMP_TradeSession* Session = ActiveTrades.Find(TradeId);
-  //  if (!Session)
-  //  {
-		//UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::SubmitOffer - TradeId %s not found in active trades"), *TradeId);
-		//return; // Invalid trade ID
-  //  }
     if (Offer.Status != ETradeSessionStatus::Bargain && Offer.Status != ETradeSessionStatus::Pending)
     {
 		UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::SubmitOffer - Cannot submit offer in current Offre Status: %s"), *UEnum::GetValueAsString(Offer.Status));
@@ -242,28 +225,26 @@ void UMP_TradingManager::RespondOffer(const FString& TradeId, const FString& Off
         return;
     }
 
-    // Find the offer by OfferId
-    FMP_TradeOffer* LatestOffer = nullptr;
-    for (int32 i = Session->Offers.Num() - 1; i >= 0; --i)
+    // Find the offer by OfferId using pointer to the element, method is  `FindByPredicate` and its returning a pointer to the first element that matches the predicate
+    FMP_TradeOffer* LatestOffer = Session->Offers.FindByPredicate([&](const FMP_TradeOffer& O)
     {
-        if (Session->Offers[i].OfferId == OfferId)
-        {
-            LatestOffer = &Session->Offers[i];
-            break;
-        }
-    }
+        return O.OfferId == OfferId;
+    });
+
     if (!LatestOffer)
     {
 		UE_LOG(LogTemp, Warning, TEXT("UMP_TradingManager::RespondOffer - OfferId %s not found in trade %s"), *OfferId, *TradeId);
         return;
     }
 
+    FString OtherId = GetOtherParticipant(*Session, LatestOffer->PlayerId);
+
     if (!bAccept)
     {
         LatestOffer->Status = ETradeSessionStatus::Rejected;
 
         // Log a trade record for the offerer with TradeType=None
-        UMP_InventoryAnalytics* Analytics = UMP_InventoryAnalytics::Get(this);
+        UMP_AnalyticsManager* Analytics = UMP_AnalyticsManager::Get(this);
 
         for (const FMP_InventoryItem& Item : LatestOffer->ItemsOffered)
         {
@@ -276,7 +257,6 @@ void UMP_TradingManager::RespondOffer(const FString& TradeId, const FString& Off
             Analytics->AddPlayerTradeRecord(LatestOffer->PlayerId, Record);
         }
 
-        FString OtherId = GetOtherParticipant(*Session, LatestOffer->PlayerId);
         NotifyParticipant(OtherId, TEXT("TradeOfferRejected"), *Session, nullptr, false);
         return;
     }
@@ -287,14 +267,12 @@ void UMP_TradingManager::RespondOffer(const FString& TradeId, const FString& Off
     {
 		LatestOffer->Status = ETradeSessionStatus::Completed;
 		NotifyParticipant(LatestOffer->PlayerId, TEXT("TradeCompleted"), *Session, LatestOffer, true);
-		FString OtherId = GetOtherParticipant(*Session, LatestOffer->PlayerId);
 		NotifyParticipant(OtherId, TEXT("TradeCompleted"), *Session, LatestOffer, true);
 	}
     else
     {
         LatestOffer->Status = ETradeSessionStatus::Cancelled;
         NotifyParticipant(LatestOffer->PlayerId, TEXT("TradeOfferFailed"), *Session, nullptr, false);
-        FString OtherId = GetOtherParticipant(*Session, LatestOffer->PlayerId);
         NotifyParticipant(OtherId, TEXT("TradeOfferFailed"), *Session, nullptr, false);
 
     }
@@ -316,7 +294,7 @@ void UMP_TradingManager::EndTrade(const FString& TradeId)
     NotifyParticipant(Session->PlayerBId, "TradeEnded", *Session, nullptr, false);
 
     // --- Add to analytics before removal ---
-    UMP_InventoryAnalytics* Analytics = UMP_InventoryAnalytics::Get(this);
+    UMP_AnalyticsManager* Analytics = UMP_AnalyticsManager::Get(this);
     Analytics->AddTradeSession(Session->TradeId, Session->PlayerAId, Session->PlayerBId);
 
     // Remove from active trades
@@ -329,7 +307,6 @@ void UMP_TradingManager::EndTrade(const FString& TradeId)
 
 UMP_InventoryComponent* UMP_TradingManager::GetInventoryComponent(const FString& PlayerId) const  
 {  
-
    UMP_InventoryComponent* Comp = UMP_Inventory_BFL::FindInventoryComponentByUniqueId(GetWorld(), PlayerId);
    if (Comp && Comp->IsValidLowLevel())
    {
@@ -363,16 +340,7 @@ FString UMP_TradingManager::GetActiveTradeForPlayer(const FString& PlayerId) con
 
 bool UMP_TradingManager::IsPlayerInTrade(const FString& PlayerId) const
 {
-    for (const auto& Pair : ActiveTrades)
-    {
-        const FMP_TradeSession& Session = Pair.Value;
-        if ((Session.PlayerAId == PlayerId || Session.PlayerBId == PlayerId)
-            && Session.CurrentStatus != ETradeSessionStatus::Completed
-            && Session.CurrentStatus != ETradeSessionStatus::Cancelled
-            && Session.CurrentStatus != ETradeSessionStatus::Rejected)
-            return true;
-    }
-    return false;
+    return GetActiveTradeForPlayer(PlayerId).IsEmpty();
 }
 
 // ---- PRIVATE HELPERS ----
@@ -383,12 +351,18 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
     FMP_TradeSession* Session = ActiveTrades.Find(TradeId);
     if (!Session) return false;
 
+    // Get Item Definition Storage for price lookups
+    UMP_ItemRegistry* Storage = Cast<UMP_ItemRegistry>(GetWorld()->GetGameInstance()->GetSubsystem<UMP_ItemRegistry>());
+
     FString FromId = Offer.PlayerId;                   // Offeror
     FString ToId = GetOtherParticipant(*Session, FromId); // Offeree
 
-    float TotalPrice = Offer.OfferType == ETradeOfferType::Exchange ? Offer.ItemsOffered[0].Value + Offer.ItemsOffered[1].Value : Offer.ValueOffered;
+    float ItemA_Value = Offer.ItemsOffered.IsValidIndex(0) ? Storage->GetItemDefinitionByName(Offer.ItemsOffered[0].ItemID)->BasePrice : 0.0f;
+    float ItemB_Value = Offer.ItemsOffered.IsValidIndex(1) ? Storage->GetItemDefinitionByName(Offer.ItemsOffered[1].ItemID)->BasePrice : 0.0f;
 
-	float Price = Offer.OfferType == ETradeOfferType::Exchange ? Offer.ItemsOffered[0].Value - Offer.ItemsOffered[1].Value : Offer.ValueOffered;
+    float TotalPrice = Offer.OfferType == ETradeOfferType::Exchange ? ItemA_Value + ItemB_Value : Offer.ValueOffered;
+
+	float Price = Offer.OfferType == ETradeOfferType::Exchange ? ItemA_Value - ItemB_Value : Offer.ValueOffered;
 
     float TradeFee = FMath::Abs(TotalPrice * 0.026f);
 
@@ -402,23 +376,23 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
     {
         if (Price < TradeFee)
         {
-            bPaidFeeB = ValidateAndProcessPayment(ToId, Price+(TradeFee/2), TradeId);
-            bPaidFeeA = ValidateAndProcessPayment(FromId, -(Price-(TradeFee / 2)), TradeId);
+            bPaidFeeB = ProcessPayment(ToId, Price+(TradeFee/2), TradeId);
+            bPaidFeeA = ProcessPayment(FromId, -(Price-(TradeFee / 2)), TradeId);
         }
 		else if (Price > 0) // Price is positive for seller
         {
-			bPaidFeeB = ValidateAndProcessPayment(ToId, Price, TradeId);
-            bPaidFeeA = ValidateAndProcessPayment(FromId, -RecivePrice, TradeId);
+			bPaidFeeB = ProcessPayment(ToId, Price, TradeId);
+            bPaidFeeA = ProcessPayment(FromId, -RecivePrice, TradeId);
         }
 		else if (Price < 0) // Price is negative for buyer
         {
-            bPaidFeeA = ValidateAndProcessPayment(FromId, -Price, TradeId);
-			bPaidFeeB = ValidateAndProcessPayment(ToId, -RecivePrice, TradeId);
+            bPaidFeeA = ProcessPayment(FromId, -Price, TradeId);
+			bPaidFeeB = ProcessPayment(ToId, -RecivePrice, TradeId);
         }
         else
         {
-            bPaidFeeA = ValidateAndProcessPayment(FromId, TradeFee/2, TradeId);
-            bPaidFeeB = ValidateAndProcessPayment(ToId, TradeFee/2, TradeId);
+            bPaidFeeA = ProcessPayment(FromId, TradeFee/2, TradeId);
+            bPaidFeeB = ProcessPayment(ToId, TradeFee/2, TradeId);
         }
     }
 
@@ -427,14 +401,14 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
 		if (Offer.OfferType == ETradeOfferType::Sell)
 		{
 			// For sell, only seller pays the fee
-			bPaidFeeB = ValidateAndProcessPayment(ToId, Price, TradeId);
-			bPaidFeeA = ValidateAndProcessPayment(FromId, -RecivePrice, TradeId);
+			bPaidFeeB = ProcessPayment(ToId, Price, TradeId);
+			bPaidFeeA = ProcessPayment(FromId, -RecivePrice, TradeId);
 		}
 		else if (Offer.OfferType == ETradeOfferType::Buy)
 		{
 			// For buy, only buyer pays the fee
-			bPaidFeeA = ValidateAndProcessPayment(FromId, Price, TradeId);   
-			bPaidFeeB = ValidateAndProcessPayment(ToId, -RecivePrice, TradeId);
+			bPaidFeeA = ProcessPayment(FromId, Price, TradeId);
+			bPaidFeeB = ProcessPayment(ToId, -RecivePrice, TradeId);
 		}
 	}
 
@@ -460,7 +434,7 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
     }
 
     // 4. Analytics
-    UMP_InventoryAnalytics* Analytics = UMP_InventoryAnalytics::Get(this);
+    UMP_AnalyticsManager* Analytics = UMP_AnalyticsManager::Get(this);
 
     if (Offer.OfferType == ETradeOfferType::Exchange)
     {
@@ -468,33 +442,23 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
         RecordA.TradeId = Session->TradeId;
         RecordA.ItemID = Offer.ItemsOffered[0].ItemID;
         RecordA.Quantity = Offer.ItemsOffered[0].Quantity;
-        RecordA.TradePrice = Offer.ItemsOffered[0].Value;
+        RecordA.TradePrice = ItemA_Value;
         RecordA.TradeTime = FDateTime::UtcNow();
         RecordA.TradeType = EInventoryDelta::Added;
 		Analytics->AddPlayerTradeRecord(FromId, RecordA);
 
         FTimerHandle DelayHandle;
-        GetWorld()->GetTimerManager().SetTimer(DelayHandle, [=]()
+        GetWorld()->GetTimerManager().SetTimer(DelayHandle, [this, ToId, TradeId = Session->TradeId, ItemB = Offer.ItemsOffered[1], ItemB_Value, Analytics]()
             {
                 FMP_ItemTradeRecord RecordB;
-                RecordB.TradeId = Session->TradeId;
-                RecordB.ItemID = Offer.ItemsOffered[1].ItemID;
-                RecordB.Quantity = Offer.ItemsOffered[1].Quantity;
-                RecordB.TradePrice = Offer.ItemsOffered[1].Value;
+                RecordB.TradeId = TradeId;
+                RecordB.ItemID = ItemB.ItemID;
+                RecordB.Quantity = ItemB.Quantity;
+                RecordB.TradePrice = ItemB_Value;
                 RecordB.TradeTime = FDateTime::UtcNow();
                 RecordB.TradeType = EInventoryDelta::Added;
                 Analytics->AddPlayerTradeRecord(ToId, RecordB);
             }, 0.5f, false);
-
-
-		//FMP_ItemTradeRecord RecordB;
-		//RecordB.TradeId = Session->TradeId;
-		//RecordB.ItemID = Offer.ItemsOffered[1].ItemID;
-		//RecordB.Quantity = Offer.ItemsOffered[1].Quantity;
-		//RecordB.TradePrice = Offer.ItemsOffered[1].Value;
-		//RecordB.TradeTime = FDateTime::UtcNow();
-		//RecordB.TradeType = EInventoryDelta::Added;
-		//Analytics->AddPlayerTradeRecord(ToId, RecordB);
 	}
 	else if (Offer.OfferType == ETradeOfferType::Sell)
 	{
@@ -504,7 +468,7 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
 			Record.TradeId = Session->TradeId;
 			Record.ItemID = Item.ItemID;
 			Record.Quantity = Item.Quantity;
-			Record.TradePrice = Item.Value;
+			Record.TradePrice = Storage->GetItemDefinitionByName(Item.ItemID)->BasePrice;
 			Record.TradeTime = FDateTime::UtcNow();
 			Record.TradeType = EInventoryDelta::Added;
 			Analytics->AddPlayerTradeRecord(FromId, Record);
@@ -518,7 +482,7 @@ bool UMP_TradingManager::CompleteTrade(const FString& TradeId, const FMP_TradeOf
 			Record.TradeId = Session->TradeId;
 			Record.ItemID = Item.ItemID;
 			Record.Quantity = Item.Quantity;
-			Record.TradePrice = Item.Value;
+			Record.TradePrice = Storage->GetItemDefinitionByName(Item.ItemID)->BasePrice;
 			Record.TradeTime = FDateTime::UtcNow();
 			Record.TradeType = EInventoryDelta::Added;
 			Analytics->AddPlayerTradeRecord(ToId, Record);
@@ -536,98 +500,121 @@ bool UMP_TradingManager::TransferItems(const FMP_TradeOffer& Offer, const FStrin
 
     if (!CompFrom || !CompTo) return false;
 
-    if (Offer.OfferType == ETradeOfferType::Exchange)
-    {
-		//For exchange, we assume items are swapped between two parties
-			if (Offer.ItemsOffered.Num() != 2)
-				return false; // Invalid exchange offer
+ //   if (Offer.OfferType == ETradeOfferType::Exchange)
+ //   {
+	//	//For exchange, we assume items are swapped between two parties
+	//		if (Offer.ItemsOffered.Num() != 2)
+	//			return false; // Invalid exchange offer
 
-		// Ensure both parties have the items they are offering
-		FMP_InventoryItem ItemA = Offer.ItemsOffered[0];
-		FMP_InventoryItem ItemB = Offer.ItemsOffered[1];
+	//	// Ensure both parties have the items they are offering
+	//	FMP_InventoryItem ItemA = Offer.ItemsOffered[0];
+	//	FMP_InventoryItem ItemB = Offer.ItemsOffered[1];
 
-        FMP_InventoryItem OwnedItem = CompFrom->GetItemByItemID(ItemA.ItemID);
-		FMP_InventoryItem OwnedItemB = CompTo->GetItemByItemID(ItemB.ItemID);
-		
-        if (OwnedItem.Quantity < ItemA.Quantity || OwnedItemB.Quantity < ItemB.Quantity)
-			return false; // Not enough items to exchange
-		if (ItemA.ItemID == ItemB.ItemID)
-			return false; // Cannot exchange same item
+ //       FMP_InventoryItem OwnedItemA = CompFrom->GetItemByItemID(ItemA.ItemID);
+	//	FMP_InventoryItem OwnedItemB = CompTo->GetItemByItemID(ItemB.ItemID);
+	//	
+ //       if (OwnedItemA.Quantity < ItemA.Quantity || OwnedItemB.Quantity < ItemB.Quantity)
+	//		return false; // Not enough items to exchange
+	//	if (ItemA.ItemID == ItemB.ItemID)
+	//		return false; // Cannot exchange same item
 
-		// Remove items from FromId's inventory
-		CompFrom->RemoveItemByID(ItemA.ItemID, ItemA.Quantity);
-		CompTo->RemoveItemByID(ItemB.ItemID, ItemB.Quantity);
+	//	// Remove items from FromId's inventory
+	//	CompFrom->RemoveItemByID(ItemA.ItemID, ItemA.Quantity);
+	//	CompTo->RemoveItemByID(ItemB.ItemID, ItemB.Quantity);
 
-		// Add items to ToId's inventory
-		CompTo->AddItem(ItemA);
-		CompFrom->AddItem(ItemB);
-        return true;
-    }
-    else
-    {
-		// For other offer types (buy/sell), we assume items are only from one side
-        if (Offer.OfferType == ETradeOfferType::Sell)
-        {
-            // Validate all items/quantities exist
-            for (const FMP_InventoryItem& Item : Offer.ItemsOffered)
-            {
-                FMP_InventoryItem OwnedItem = CompFrom->GetItemByItemID(Item.ItemID);
-                if (OwnedItem.Quantity < Item.Quantity)
-                {
-                    return false; // Not enough
-                }
-                else
-                {
-                    CompFrom->RemoveItemByID(Item.ItemID, Item.Quantity);
-                    CompTo->AddItem(Item);
-					UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::TransferItems - Adding item %s with Quantity: %d"), *Item.ItemID.ToString(), Item.Quantity);
-                    return true;
-                }
-            }
-        }
-        else if (Offer.OfferType == ETradeOfferType::Buy)
-        {
-            // Validate all items/quantities exist
-            for (const FMP_InventoryItem& Item : Offer.ItemsOffered)
-            {
-                FMP_InventoryItem OwnedItem = CompTo->GetItemByItemID(Item.ItemID);
-                if (OwnedItem.Quantity < Item.Quantity)
-                {
-                    return false; // Not enough
-                }
-                else
-                {
-                    CompTo->RemoveItemByID(Item.ItemID, Item.Quantity);
-					UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::TransferItems - Adding item %s with Quantity: %d"), *Item.ItemID.ToString(), Item.Quantity);
-                    CompFrom->AddItem(Item);
-                    return true;
-                }
-            }
-        }
-    }
+	//	// Add items to ToId's inventory
+	//	CompTo->AddItem(ItemA.ItemID, ItemA.Quantity);
+	//	CompFrom->AddItem(ItemB.ItemID, ItemB.Quantity);
+ //       return true;
+ //   }
+	//// For other offer types (buy/sell), we assume items are only from one side
+ //   else if (Offer.OfferType == ETradeOfferType::Sell)
+ //   {
+ //       // Validate all items/quantities exist
+ //       for (const FMP_InventoryItem& Item : Offer.ItemsOffered)
+ //       {
+ //           FMP_InventoryItem OwnedItem = CompFrom->GetItemByItemID(Item.ItemID);
+ //           if (OwnedItem.Quantity > Item.Quantity)
+ //           {
+ //               CompFrom->RemoveItemByID(Item.ItemID, Item.Quantity);
+ //               CompTo->AddItem(Item.ItemID, Item.Quantity);
+	//			UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::TransferItems - Adding item %s with Quantity: %d"), *Item.ItemID.ToString(), Item.Quantity);
+ //               return true;
+ //           }
+ //       }
+ //   }
+ //   else if (Offer.OfferType == ETradeOfferType::Buy)
+ //   {
+ //       // Validate all items/quantities exist
+ //       for (const FMP_InventoryItem& Item : Offer.ItemsOffered)
+ //       {
+ //           FMP_InventoryItem OwnedItem = CompTo->GetItemByItemID(Item.ItemID);
+ //           if (OwnedItem.Quantity > Item.Quantity)
+ //           {
+ //               CompTo->RemoveItemByID(Item.ItemID, Item.Quantity);
+ //               CompFrom->AddItem(Item.ItemID, Item.Quantity);
+	//			UE_LOG(LogTemp, Log, TEXT("UMP_TradingManager::TransferItems - Adding item %s with Quantity: %d"), *Item.ItemID.ToString(), Item.Quantity);
+ //               return true;
+ //           }
+ //       }
+ //   }
 	return false; // If we reach here, something went wrong
 }
 
-// Payment interface calls
-bool UMP_TradingManager::ValidateAndProcessPayment(const FString& PlayerId, float Amount, const FString& TradeId) const
-{
-    UMP_InventoryComponent* Comp = GetInventoryComponent(PlayerId);
-    if (!Comp) return false;
-
-    AActor* Owner = Comp->GetOwner();
-    if (!Owner) return false;
-
-    // First, validate payment
-    if (Owner->GetClass()->ImplementsInterface(UMP_TradeNotification_I::StaticClass()))
-    {
-        bool bValid = IMP_TradeNotification_I::Execute_OnValidatePayment(Owner, TradeId, Amount);
-        if (!bValid) return false;
-        // Now process payment
-        IMP_TradeNotification_I::Execute_OnProcessPayment(Owner, TradeId, Amount);
-        return true;
-    }
-    return false;
-}
+//bool UMP_TradingManager::ProcessItemTransfer(const FString& TradeId, const FMP_InventoryItem& Item, const FString& PlayerId, const float Amount) const
+//{
+//    UMP_InventoryComponent* Comp = GetInventoryComponent(PlayerId);
+//    if (!Comp) return false;
+//
+//    if(Amount < 0) // Buy
+//    {
+//        if (ProcessPayment(PlayerId, Amount, TradeId))
+//        {
+//			Comp->AddItem(Item);
+//            return true;
+//        }
+//    }
+//	else if (Amount > 0) // Sell
+//    {
+//        // For sell, player gives item and receives amount
+//        FMP_InventoryItem OwnedItem = Comp->GetItemByItemID(Item.ItemID);
+//        if (OwnedItem.Quantity > Item.Quantity)
+//        {
+//            Comp->RemoveItemByID(Item.ItemID, Item.Quantity);
+//        }
+//        if (!ProcessPayment(PlayerId, Amount, TradeId))
+//        {
+//            Comp->AddItem(Item);
+//			return false; // Payment failed, rollback item transfer
+//        }
+//		return true;
+//	}
+//
+//    return false;
+//}
+//
+//// Payment interface calls
+//bool UMP_TradingManager::ValidateAndProcessPayment(const FString& PlayerId, float Amount, const FString& TradeId) const
+//{
+//    UMP_InventoryComponent* Comp = GetInventoryComponent(PlayerId);
+//    if (!Comp) return false;
+//
+//	Comp->OnProcessPayment.Broadcast(TradeId, Amount);
+//
+//    AActor* Owner = Comp->GetOwner();
+//    if (!Owner) return false;
+//
+//    // First, validate payment
+//    if (Owner->GetClass()->ImplementsInterface(UMP_TradeNotification_I::StaticClass()))
+//    {
+//        bool bValid = IMP_TradeNotification_I::Execute_OnValidatePayment(Owner, TradeId, Amount);
+//        if (!bValid) return false;
+//        // Now process payment
+//        IMP_TradeNotification_I::Execute_OnProcessPayment(Owner, TradeId, Amount);
+//        return true;
+//    }
+//    return false;
+//}
 
 FString UMP_TradingManager::GetOtherParticipant(const FMP_TradeSession& Session, const FString& PlayerId) const
 {

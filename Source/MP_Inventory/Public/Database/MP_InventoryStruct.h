@@ -1,20 +1,20 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Net/Serialization/FastArraySerializer.h"
+#include "Engine/DataTable.h"
 #include "GameplayTagContainer.h"
 #include "MP_InventoryStruct.generated.h"
 
 /**
- * 
+ * Enum to represent the type of change in inventory, used for tracking and analytics.
  */
-
 UENUM(BlueprintType)
 enum class EInventoryDelta : uint8
 {
-    Refresh,       // –1 shorthand when you wipe everything
+    Refresh,       // -1 shorthand when you wipe everything
     Added,
     Removed,
     Updated,
@@ -54,20 +54,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
     int32 Quantity = 1;
 
+	// Tells the TileView exactly which grid slot this item occupies
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
-    float Value = 0.0f;
+    int32 SlotIndex = -1;
 
-    // Tags for filtering (e.g., Item.Digital, Item.Lock)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
-    FGameplayTagContainer Tags;
-
-    // Display name for UI
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
-    FString DisplayName;
-
-    // Soft pointer to icon texture
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
-    TSoftObjectPtr<UTexture> Icon;
+    UPROPERTY()
+    bool bIsLocked = false;
 
     FMP_InventoryItem();
 	~FMP_InventoryItem();
@@ -77,7 +69,7 @@ public:
 
     bool operator==(const FMP_InventoryItem& Other) const
     {
-        return ItemID == Other.ItemID; // Compare by ItemID only—adjust if needed
+        return ItemID == Other.ItemID; // Compare by ItemID only adjust if needed
     }
 };
 
@@ -88,7 +80,7 @@ struct TStructOpsTypeTraits<FMP_InventoryItem> : public TStructOpsTypeTraitsBase
 };
 
 USTRUCT(BlueprintType)
-struct FMP_ItemDefinition : public FTableRowBase
+struct FMP_ItemDefinitions : public FTableRowBase
 {
     GENERATED_BODY()
 public:
@@ -117,7 +109,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Definition")
     TArray<TSoftObjectPtr<UMaterialInterface>> Materials;
 
-    // Initial static volume (e.g., world stock)
+	// Initial static volume (e.g., world stock) If needed, ignored if infinite volume mode.
+	// This can be also used for anti-cheat measure to prevent players from creating items out of thin air if they don't have permission to do so.
+	// For that it requred Runtime Write on DataTable which currently out of scope for this plugin, but can be implemented in the future if needed.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Definition")
     int32 InitialVolume = 1;
 
@@ -125,8 +119,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Definition")
     float BasePrice = 1.0f;
 
-    FMP_ItemDefinition();
-    ~FMP_ItemDefinition();
+    FMP_ItemDefinitions();
+    ~FMP_ItemDefinitions();
 
 };
 
@@ -297,6 +291,14 @@ struct FInventorySnapshot
 
     UPROPERTY()
     FDateTime SavedAt;
+};
+
+USTRUCT(BlueprintType)
+struct FMP_InventorySaveData
+{
+    GENERATED_BODY()
+    UPROPERTY()
+    TArray<FMP_InventoryItem> InventoryData;
 };
 
 USTRUCT(BlueprintType)

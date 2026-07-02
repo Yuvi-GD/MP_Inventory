@@ -27,11 +27,5 @@
 			"Name": "GameplayTags",
 			"Enabled": true
 		}
-	],
-	"Plugins": [
-		{
-			"Name": "MP_Interface",
-			"Enabled": true
-		}
 	]
 }

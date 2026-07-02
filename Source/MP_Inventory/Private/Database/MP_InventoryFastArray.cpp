@@ -1,136 +1,170 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 
 #include "Database/MP_InventoryFastArray.h"
 #include "Database/MP_InventoryStruct.h"
+#include "Framework/MP_InventoryComponent.h"
 
-// Utility to notify owner/component
-void FMP_InventoryArray::NotifyOwner(EInventoryDelta Delta, int32 SlotIndex)
+// =============================================================================
+//  OWNER NOTIFICATION
+// =============================================================================
+
+void FMP_InventoryArray::NotifyOwner(EInventoryDelta Delta, int32 ArrayIndex)
 {
-    if (Owner.IsValid())
+    if (!Owner.IsValid()) return;
+    if (UMP_InventoryComponent* InvComp = Cast<UMP_InventoryComponent>(Owner.Get()))
     {
-        // Your component must implement a function with this signature.
-        // Usually: void FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex)
-        UFunction* NotifyFunc = Owner->FindFunction(FName("FireInventoryUpdate"));
-        if (NotifyFunc)
-        {
-            struct FParams
-            {
-                EInventoryDelta Delta;
-                int32 SlotIndex;
-            };
-            FParams Params;
-            Params.Delta = Delta;
-            Params.SlotIndex = SlotIndex;
-            Owner->ProcessEvent(NotifyFunc, &Params);
-        }
+        InvComp->FireInventoryUpdate(Delta, ArrayIndex);
     }
 }
 
-// Add item (by struct), combine or add new, mark dirty
+
+// =============================================================================
+//  WRITE OPERATIONS
+// =============================================================================
+
 void FMP_InventoryArray::AddItem(const FMP_InventoryItem& NewItem)
 {
-    for (int32 i = 0; i < Items.Num(); ++i)
-    {
-        if (Items[i].ItemID == NewItem.ItemID)
-        {
-            Items[i].Quantity += NewItem.Quantity;
-            MarkItemDirty(Items[i]);
-            MarkArrayDirty();
-            NotifyOwner(EInventoryDelta::Updated, i);
-            return;
-        }
-    }
-	// If not found, add as new item
     Items.Add(NewItem);
     MarkItemDirty(Items.Last());
     MarkArrayDirty();
     NotifyOwner(EInventoryDelta::Added, Items.Num() - 1);
 }
 
-// Remove item by index, decrease quantity/remove if zero, mark dirty
-void FMP_InventoryArray::RemoveItem(int32 Index, int32 Quantity)
+void FMP_InventoryArray::AddQuantity(int32 ArrayIndex, int32 Quantity)
 {
-    if (!Items.IsValidIndex(Index))
+    if (!Items.IsValidIndex(ArrayIndex) || Quantity <= 0) return;
+    
+    FMP_InventoryItem& Item = Items[ArrayIndex];
+    Item.Quantity += Quantity;
+    MarkItemDirty(Item);
+    MarkArrayDirty();
+    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+}
+
+int32 FMP_InventoryArray::RemoveItem(int32 ArrayIndex, int32 Quantity)
+{
+    if (!Items.IsValidIndex(ArrayIndex)) return INDEX_NONE;
+
+    FMP_InventoryItem& Item = Items[ArrayIndex];
+
+    if (Quantity <= 0 || Quantity > Item.Quantity)
     {
-		UE_LOG(LogTemp, Warning, TEXT("FMP_InventoryArray::RemoveItem - Invalid index %d"), Index);
-        return;
+        UE_LOG(LogTemp, Warning,
+            TEXT("FMP_InventoryArray::RemoveItem - Invalid quantity %d for slot %d (has %d)."),
+            Quantity, Item.SlotIndex, Item.Quantity);
+        return INDEX_NONE;
     }
 
-    FMP_InventoryItem& Item = Items[Index];
     Item.Quantity -= Quantity;
 
-    if (Quantity <= 0 && Quantity != -1)
+    if (Item.Quantity > 0)
     {
-		UE_LOG(LogTemp, Warning, TEXT("FMP_InventoryArray::RemoveItem - Invalid quantity %d for item %s at index %d"), Quantity, *Item.ItemID.ToString(), Index);
-        return; // If quantity is not -1 or less than or equal to zero, do nothing
-    }
-    if (Quantity == -1 || Item.Quantity == 0) // If quantity is -1 or equal to zero, remove item
-    {
-        Items.RemoveAt(Index);
-        MarkArrayDirty();
-        NotifyOwner(EInventoryDelta::Removed, Index);
-        // No need to mark dirty after removal (UE will handle removal)
-    }
-    else
-    {
-		UE_LOG(LogTemp, Warning, TEXT("FMP_InventoryArray::RemoveItem - Decreased quantity of %s to %d at index %d"), *Item.ItemID.ToString(), Item.Quantity, Index);
         MarkItemDirty(Item);
-        NotifyOwner(EInventoryDelta::Updated, Index);
+        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+        MarkArrayDirty();
+        return INDEX_NONE;
     }
-}
 
-// Update item at index, full replacement, mark dirty
-void FMP_InventoryArray::UpdateItem(int32 Index, const FMP_InventoryItem& NewItem)
-{
-    if (!Items.IsValidIndex(Index))
-        return;
+    const int32 LastIndex = Items.Num() - 1;
+    const bool bSwapWillHappen = (ArrayIndex != LastIndex);
+    const int32 FreedSlot = Item.SlotIndex;
 
-    Items[Index] = NewItem;
-    MarkItemDirty(Items[Index]);
+    // Fire BEFORE removal so Items[ArrayIndex] is still valid.
+    // For Removed, we pass the SlotIndex.
+    // For Remove at Swap always last element will be removed and delete index will update wit last index.
+    NotifyOwner(EInventoryDelta::Removed, Items[LastIndex].SlotIndex);
+
+    Items.RemoveAtSwap(ArrayIndex);
+
+    // If RemoveAtSwap moved another item in, notify UI to update its stored ArrayIndex
+    if (bSwapWillHappen)
+    {
+        Items[ArrayIndex].SlotIndex = FreedSlot;
+        MarkItemDirty(Items[ArrayIndex]);
+        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+    }
+
     MarkArrayDirty();
-    NotifyOwner(EInventoryDelta::Updated, Index);
+    return FreedSlot;
 }
 
-// Swap two items by index, mark both dirty
-void FMP_InventoryArray::SwapItems(int32 IndexA, int32 IndexB)
+void FMP_InventoryArray::UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& NewItem)
 {
-    if (!Items.IsValidIndex(IndexA) || !Items.IsValidIndex(IndexB) || IndexA == IndexB)
-        return;
+    if (!Items.IsValidIndex(ArrayIndex)) return;
 
-    Items.Swap(IndexA, IndexB);
-    MarkItemDirty(Items[IndexA]);
-    MarkItemDirty(Items[IndexB]);
+    Items[ArrayIndex] = NewItem;
+    MarkItemDirty(Items[ArrayIndex]);
     MarkArrayDirty();
-    NotifyOwner(EInventoryDelta::Updated, IndexA);
-    NotifyOwner(EInventoryDelta::Updated, IndexB);
+    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
 }
 
-// FastArray replication macro (UE pattern)
+void FMP_InventoryArray::SwapItems(int32 ArrayIndexA, int32 ArrayIndexB)
+{
+    if (!Items.IsValidIndex(ArrayIndexA) ||
+        !Items.IsValidIndex(ArrayIndexB) ||
+        ArrayIndexA == ArrayIndexB) return;
+
+    Swap(Items[ArrayIndexA].SlotIndex, Items[ArrayIndexB].SlotIndex);
+
+    MarkItemDirty(Items[ArrayIndexA]);
+    MarkItemDirty(Items[ArrayIndexB]);
+    MarkArrayDirty();
+
+    NotifyOwner(EInventoryDelta::Updated, ArrayIndexA);
+    NotifyOwner(EInventoryDelta::Updated, ArrayIndexB);
+}
+
+
+// =============================================================================
+//  REPLICATION CALLBACKS
+// =============================================================================
+
 bool FMP_InventoryArray::NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
 {
-    return FFastArraySerializer::FastArrayDeltaSerialize<FMP_InventoryItem, FMP_InventoryArray>(Items, DeltaParms, *this);
+    return FFastArraySerializer::FastArrayDeltaSerialize<FMP_InventoryItem, FMP_InventoryArray>(
+        Items, DeltaParms, *this);
 }
 
 void FMP_InventoryArray::PreReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize)
 {
     for (int32 Index : RemovedIndices)
     {
-        NotifyOwner(EInventoryDelta::Removed, Index);
+        if (Items.IsValidIndex(Index))
+        {
+            // For Removed, we pass the SlotIndex so UI knows which tile to clear
+            NotifyOwner(EInventoryDelta::Removed, Items[Index].SlotIndex);
+        }
     }
 }
+
 void FMP_InventoryArray::PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize)
 {
     for (int32 Index : AddedIndices)
     {
-        NotifyOwner(EInventoryDelta::Added, Index);
+        if (Items.IsValidIndex(Index))
+        {
+            NotifyOwner(EInventoryDelta::Added, Index);
+        }
     }
 }
+
 void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize)
 {
     for (int32 Index : ChangedIndices)
     {
-        NotifyOwner(EInventoryDelta::Updated, Index);
+        if (Items.IsValidIndex(Index))
+        {
+            NotifyOwner(EInventoryDelta::Updated, Index);
+        }
     }
 }
 
+void FMP_InventoryArray::PostReplicatedReceive(
+    const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
+{
+    if (UMP_InventoryComponent* InvComp = Cast<UMP_InventoryComponent>(Owner.Get()))
+    {
+        InvComp->FireInventoryUpdate(EInventoryDelta::Refresh, -1);
+    }
+}

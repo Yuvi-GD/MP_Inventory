@@ -1,14 +1,14 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 
 #include "Database/MP_InventoryStruct.h"
+
 
 FMP_InventoryItem::FMP_InventoryItem()
 {
     ItemID = FName();
     Quantity = 1;
-    DisplayName = TEXT("");
-    Icon = nullptr;
+    SlotIndex = -1;
 }
 
 FMP_InventoryItem::~FMP_InventoryItem()
@@ -21,20 +21,8 @@ bool FMP_InventoryItem::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutS
 
     Ar << ItemID;
     Ar << Quantity;
-    Ar << Value;
-    Ar << DisplayName;
-
-    // --- Serialize FGameplayTagContainer Tags ---
-    Tags.NetSerialize(Ar, Map, bOutSuccess);
-    // --------------------------------------------
-
-    // Soft object pointer
-    UObject* IconPtr = Icon.Get();
-    Map->SerializeObject(Ar, UTexture::StaticClass(), IconPtr);
-    if (Ar.IsLoading())
-    {
-        Icon = Cast<UTexture>(IconPtr);
-    }
+    Ar << SlotIndex;
+	Ar << bIsLocked;
 
     if (Ar.IsError())
     {
@@ -45,7 +33,7 @@ bool FMP_InventoryItem::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutS
 
 
 
-FMP_ItemDefinition::FMP_ItemDefinition()
+FMP_ItemDefinitions::FMP_ItemDefinitions()
 {
     ItemID = FName();
     DisplayName = TEXT("");
@@ -55,7 +43,7 @@ FMP_ItemDefinition::FMP_ItemDefinition()
     Materials.Add(nullptr);
 }
 
-FMP_ItemDefinition::~FMP_ItemDefinition()
+FMP_ItemDefinitions::~FMP_ItemDefinitions()
 {
 }
 

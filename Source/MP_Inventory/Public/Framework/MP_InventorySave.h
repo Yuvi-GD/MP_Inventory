@@ -1,14 +1,15 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Database/MP_InventoryStruct.h"
+#include "Database/MP_InventoryFastArray.h"
 #include "GameFramework/SaveGame.h"
 #include "MP_InventorySave.generated.h"
 
 /**
- * 
+ * SaveGame class to store inventory data. Uses a TMap to associate player IDs with their inventory arrays.
  */
 UCLASS(Blueprintable)
 class MP_INVENTORY_API UMP_InventorySave : public USaveGame
@@ -17,13 +18,7 @@ class MP_INVENTORY_API UMP_InventorySave : public USaveGame
 	
 public:
 
-
-    UPROPERTY(BlueprintReadWrite, Category = "MP_Inventory|Save")
-    TArray<FMP_InventoryItem> InventoryItems;
-
-    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Save")
-    bool SaveToSlot(FString SlotName);
-
-    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Save")
-    bool LoadFromSlot(FString SlotName);
+	// Map of player IDs to their inventory arrays
+    UPROPERTY(VisibleAnywhere, Category = "MP_Inventory|Save")
+    TMap<FName, FMP_InventoryArray> SavedInventory;
 };

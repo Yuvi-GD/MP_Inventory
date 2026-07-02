@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 #pragma once
 
@@ -95,6 +95,7 @@ public:
     UMP_TradingManager();
 
 public:
+
     // Singleton pattern
     UFUNCTION(BlueprintCallable,BlueprintPure, Category = "MP_Trade|Manager", meta = (WorldContext = "WorldContextObject"))
     static UMP_TradingManager* GetTradingManager(UObject* WorldContextObject);
@@ -102,25 +103,25 @@ public:
     // ---- TRADE REQUEST FLOW ----
 
     // Start a trade session between two UniqueIds
-    UFUNCTION(BlueprintCallable, Category = "MP_Trade|Manager")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
     void RequestTrade(const FString& PlayerAId, const FString& PlayerBId);
 
     // Player responds to trade request (accept/reject)
-    UFUNCTION(BlueprintCallable, Category = "MP_Trade|Manager")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
     void RespondTrade(const FString& TradeId, const bool bAccepted);
 
     // ---- OFFER FLOW ----
 
     // One player submits a trade offer (new offer or counter)
-    UFUNCTION(BlueprintCallable, Category = "MP_Trade|Manager")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
     void SubmitOffer(const FString& TradeId, const FMP_TradeOffer& Offer);
 
     // Other player responds to latest offer (accept/reject)
-    UFUNCTION(BlueprintCallable, Category = "MP_Trade|Manager")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
     void RespondOffer(const FString& TradeId, const FString& OfferId, bool bAccept);
 
     // End/cancel a trade (timeout or user action)
-    UFUNCTION(BlueprintCallable, Category = "MP_Trade|Manager")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
     void EndTrade(const FString& TradeId);
 
     // ---- HELPERS ----
@@ -151,10 +152,14 @@ protected:
     UPROPERTY()
     TMap<FString, FMP_TradeSession> PendingTrades;
 
+	// Payment processing is abstracted to Blueprint to allow for different implementations (currency, validation, etc)
+    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, BlueprintAuthorityOnly, Category = "MP_Trade|Manager")
+    bool ProcessPayment(const FString& PlayerId, float Amount, const FString& TradeId) const;
+
 private:
     static TWeakObjectPtr<UMP_TradingManager> SingletonInstance;
 
-    // Notify a participant (via their owner’s trade interface)
+    // Notify a participant (via their ownerï¿½s trade interface)
     // NotificationType use with switch statement, Session info, result, if need latest offer for particular intrface fetch from session last index
     void NotifyParticipant(const FString& PlayerId, FName NotificationType, const FMP_TradeSession& Session, const FMP_TradeOffer* Offer, const bool Result) const;
 
@@ -164,10 +169,11 @@ private:
     // Utility: Internal logic to complete a trade (remove/add items, analytics)
     bool CompleteTrade(const FString& TradeId, const FMP_TradeOffer& Offer);
 
-    // Payment/validation helpers, Payment interface comes separate here
-    bool ValidateAndProcessPayment(const FString& PlayerId, float Amount, const FString& TradeId) const;
     bool TransferItems(const FMP_TradeOffer& Offer, const FString& FromId, const FString& ToId) const;
 
+    // Payment/validation helpers, Payment interface comes separate here
+    //bool ValidateAndProcessPayment(const FString& PlayerId, float Amount, const FString& TradeId) const;
+	//bool ProcessItemTransfer(const FString& TradeId, const FMP_InventoryItem& Item, const FString& PlayerId, const float Amount) const;
 	// custom notification interface would be call anywhere no need specific function or can be another separte function for often call
 
 //private:

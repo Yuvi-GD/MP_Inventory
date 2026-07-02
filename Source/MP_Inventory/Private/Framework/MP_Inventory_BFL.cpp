@@ -1,12 +1,14 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 
 #include "Framework/MP_Inventory_BFL.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameStateBase.h" // Add this include to resolve the incomplete type error
+#include "GameFramework/PlayerState.h" // Add this include to resolve the incomplete type error
 #include "GameplayTagsManager.h"
-
+#include "Components/Image.h"
+#include "Styling/SlateBrush.h"
 
 UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryByActor(AActor* Actor)
 {
@@ -25,6 +27,51 @@ UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryByActor(AActor* Actor)
     }
 
     return MP_Inventory; // This will be nullptr if nothing was found
+}
+
+UMP_InventoryComponent* UMP_Inventory_BFL::GetInventoryComponent(UObject* WorldContextObject)
+{
+    if (!WorldContextObject) {
+        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByActor - WorldContextObject is invalid."));
+        return nullptr;
+	}
+    
+	UWorld* World = WorldContextObject->GetWorld();
+    if (!World) {
+        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByActor - World is invalid."));
+        return nullptr;
+	}
+
+	UMP_InventoryComponent* InventoryComponent = nullptr;
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
+    if (PlayerController)
+    {
+        InventoryComponent = PlayerController->FindComponentByClass<UMP_InventoryComponent>();
+        if (InventoryComponent)
+        {
+            return InventoryComponent;
+		}
+		APlayerState* PlayerState = PlayerController->PlayerState;
+        if (PlayerState)
+        {
+            InventoryComponent = PlayerState->FindComponentByClass<UMP_InventoryComponent>();
+            if (InventoryComponent)
+            {
+                return InventoryComponent;
+            }
+        }
+		APawn* Pawn = PlayerController->GetPawn();
+        if (Pawn)
+        {
+            InventoryComponent = Pawn->FindComponentByClass<UMP_InventoryComponent>();
+            if (InventoryComponent)
+            {
+                return InventoryComponent;
+            }
+		}
+    }
+    return nullptr;
 }
 
 //AMP_Inventory_PlayerState* UMP_Inventory_BFL::GetInventoryPlayerState(const UObject* WorldContextObject)
@@ -99,7 +146,7 @@ FString UMP_Inventory_BFL::UniqueNetIdToString(UObject* WorldContextObject, cons
     return TargetUniqueNetId.GetUniqueNetId()->ToString();
 }
 
-//APlayerState* UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId)
+//AMP_Inventory_PlayerState* UMP_Inventory_BFL::FindPlayerStateByPersistentPlayerId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId)
 //{
 //    if (!WorldContextObject || TargetPersistentPlayerId.IsEmpty())
 //    {
@@ -116,7 +163,13 @@ FString UMP_Inventory_BFL::UniqueNetIdToString(UObject* WorldContextObject, cons
 //    for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
 //    {
 //        APlayerController* PlayerController = Iterator->Get();
-//        if (!PlayerController && !PlayerController->PlayerState)
+//        if (!PlayerController)
+//        {
+//            continue;
+//        }
+//
+//        AMP_Inventory_PlayerState* PlayerState = Cast<AMP_Inventory_PlayerState>(PlayerController->PlayerState);
+//        if (!PlayerState)
 //        {
 //            continue;
 //        }
@@ -150,7 +203,7 @@ UMP_InventoryComponent* UMP_Inventory_BFL::FindInventoryComponentByUniqueId(UObj
     {
         if (!IsValid(PS)) continue;
         auto* Inventory = PS->FindComponentByClass<UMP_InventoryComponent>();
-		if (Inventory->UniqueId == TargetPersistentPlayerId)
+		if (Inventory && Inventory->OwnerID.ToString() == TargetPersistentPlayerId)
 		{
 			return Inventory;
 		}
@@ -212,4 +265,15 @@ TArray<FGameplayTag> UMP_Inventory_BFL::GetAllGameplayTags(UObject* WorldContext
         }
     }
     return FilteredTags;
+}
+
+FSlateBrush UMP_Inventory_BFL::GetImageStyle(class UImage* TargetImage)
+{
+	FSlateBrush Brush = FSlateBrush();
+	if (IsValid(TargetImage))
+	{
+        Brush = TargetImage->Brush;
+	}
+
+	return Brush;
 }
