@@ -41,6 +41,24 @@ enum class ETradeOfferType : uint8
 };
 
 USTRUCT(BlueprintType)
+struct FMP_InventoryAddItems
+{
+	GENERATED_BODY()
+
+	// Unique identifier for the item (e.g., "Product_001")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
+	FName ItemID;
+
+	// Quantity of the item to add
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
+	int32 Quantity = 1;
+
+    // Prefer New Slot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Structure")
+    bool bPreferNewSlot = false;
+};
+
+USTRUCT(BlueprintType)
 struct FMP_InventoryItem : public FFastArraySerializerItem
 {
 public:

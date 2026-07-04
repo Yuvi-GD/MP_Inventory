@@ -29,6 +29,20 @@ struct FMP_InventoryArray : public FFastArraySerializer
     UPROPERTY()
     TArray<FMP_InventoryItem> Items;
 
+    /**
+     * Local Tracker mapping SlotIndex to ArrayIndex. 
+     * E.g., IndexTracker[5] = 2 means Slot 5 holds the item at Array Index 2.
+     * Not replicated!
+     */
+    UPROPERTY(NotReplicated)
+    TArray<int32> IndexTracker;
+
+    /**
+     * Expands or shrinks the tracker array to the target size.
+     * Newly added indices will be initialized to INDEX_NONE.
+     */
+    void ResizeTracker(int32 NewSize);
+
 
     // =========================================================================
     //  WRITE OPERATIONS
@@ -81,17 +95,17 @@ struct FMP_InventoryArray : public FFastArraySerializer
     void UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& NewItem);
 
     /**
-     * Swaps the content of two array positions.
-     * Does NOT swap SlotIndex fields - slot assignment stays with the array position.
-     * The component's SlotToArrayIndex map handles the logical remapping.
-     *
-     * After this call, the component must update SlotToArrayIndex for both slots:
-     *   SlotToArrayIndex[Items[ArrayIndexA].SlotIndex] = ArrayIndexA;
-     *   SlotToArrayIndex[Items[ArrayIndexB].SlotIndex] = ArrayIndexB;
-     *
-     * Marks both items dirty for replication.
+     * Logical Swap (Slot to Slot).
+     * Swaps the logical slot assignment of two items. Properly handles moving an item to an empty slot.
      */
-    void SwapItems(int32 ArrayIndexA, int32 ArrayIndexB);
+    void SwapItemsBySlotIndex(int32 SlotA, int32 SlotB);
+
+    /**
+     * Physical Swap (Array Index to Array Index).
+     * Physically swaps the elements in the TArray and updates the Tracker.
+     * Rarely used by standard UI logic, but critical for internal array operations.
+     */
+    void SwapItemsByArrayIndex(int32 ArrayIndexA, int32 ArrayIndexB);
 
 
     // =========================================================================

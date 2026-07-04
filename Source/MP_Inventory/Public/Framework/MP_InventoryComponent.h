@@ -108,6 +108,10 @@ public:
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
+    /* ADD Multiple Items with one RPC call To Save Bandwidth*/
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void AddItems(const TArray<FMP_InventoryAddItems> &Items);
+
     /**
      * Removes Quantity from the item at ArrayIndex.
      * If resulting quantity reaches zero, the slot is freed.
@@ -135,8 +139,14 @@ public:
      * Intended for: crafting result injection, admin replacement, loot reroll.
      * Fails if the target slot is locked.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Commands")
     void UpdateItemAtSlot(int32 SlotIndex, FMP_InventoryItem NewItem);
+
+    /**
+	* Updates the item at ArrayIndex with NewItem.
+    */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void UpdateItemAtArray(int32 ArrayIndex, FMP_InventoryItem NewItem);
 
     /**
      * Swaps the contents of two slots.
