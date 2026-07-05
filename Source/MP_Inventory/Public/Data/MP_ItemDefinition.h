@@ -8,8 +8,9 @@
 #include "MP_ItemDefinition.generated.h"
 
 /**
- * Base class for all inventory items.
- * Managed natively by the UAssetManager.
+ * Immutable primary data asset representing the static definition of an inventory item.
+ * Managed and cached natively by the UAssetManager to ensure minimal memory footprint
+ * while defining base stats, UI representations, and physical properties.
  */
 UCLASS(BlueprintType, Const)
 class MP_INVENTORY_API UMP_ItemDefinition : public UPrimaryDataAsset

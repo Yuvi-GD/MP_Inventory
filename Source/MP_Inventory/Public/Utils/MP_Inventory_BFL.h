@@ -9,7 +9,9 @@
 #include "MP_Inventory_BFL.generated.h"
 
 /**
- * A Blueprint Function Library for the MP_Inventory plugin, providing utility functions to interact with inventory components and player states.
+ * Static utility library providing globally accessible Blueprint nodes.
+ * Facilitates safe retrieval of inventory components, execution of asynchronous tasks,
+ * and common helper operations without requiring direct actor references.
  */
 UCLASS()
 class MP_INVENTORY_API UMP_Inventory_BFL : public UBlueprintFunctionLibrary

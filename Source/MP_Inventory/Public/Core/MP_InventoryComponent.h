@@ -9,7 +9,11 @@
 #include "Components/ActorComponent.h"
 #include "MP_InventoryComponent.generated.h"
 
-
+/**
+ * The core actor component responsible for managing inventory state and operations.
+ * Handles client-server replication, item transactions, stacking logic, and weight/slot validations.
+ * Must be attached to a player state or character to function correctly in a networked environment.
+ */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MP_INVENTORY_API UMP_InventoryComponent : public UActorComponent
 {

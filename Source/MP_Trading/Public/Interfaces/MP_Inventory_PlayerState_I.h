@@ -15,7 +15,9 @@ class UMP_Inventory_PlayerState_I : public UInterface
 };
 
 /**
- * 
+ * Standardized interface for decoupling the trading and inventory systems from the specific PlayerState implementation.
+ * Ensures any actor representing a player can seamlessly expose their Unique ID and backend inventory component
+ * without introducing hard dependencies on project-specific classes.
  */
 class MP_TRADING_API IMP_Inventory_PlayerState_I
 {

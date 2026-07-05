@@ -9,7 +9,9 @@
 #include "MP_InventorySave.generated.h"
 
 /**
- * SaveGame class to store inventory data. Uses a TMap to associate player IDs with their inventory arrays.
+ * Dedicated USaveGame object for persisting multiplayer inventory states.
+ * Utilizes a map of unique player IDs to fast-array serializers, enabling robust
+ * backend storage and serialization of items across sessions.
  */
 UCLASS(Blueprintable)
 class MP_INVENTORY_API UMP_InventorySave : public USaveGame

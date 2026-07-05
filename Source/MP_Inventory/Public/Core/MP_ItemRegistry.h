@@ -8,8 +8,9 @@
 #include "MP_ItemRegistry.generated.h"
 
 /**
- * Global Registry for querying Item Definitions.
- * Persists across level loads. Uses Asset Manager backend.
+ * Subsystem responsible for providing global access to item definitions via the Asset Manager.
+ * Operates across level transitions, serving as the central caching and lookup authority
+ * for querying statically defined inventory items by their primary asset identifiers.
  */
 UCLASS()
 class MP_INVENTORY_API UMP_ItemRegistry : public UGameInstanceSubsystem
