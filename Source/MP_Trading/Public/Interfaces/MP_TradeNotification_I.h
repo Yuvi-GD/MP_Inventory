@@ -16,7 +16,7 @@ class UMP_TradeNotification_I : public UInterface
 /**
  * 
  */
-class MP_INVENTORY_API IMP_TradeNotification_I
+class MP_TRADING_API IMP_TradeNotification_I
 {
 	GENERATED_BODY()
 

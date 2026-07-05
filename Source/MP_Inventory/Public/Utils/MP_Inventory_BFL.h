@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MP_InventoryComponent.h" 
+#include "Core/MP_InventoryComponent.h" 
 // #include "MP_Inventory_PlayerState.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "MP_Inventory_BFL.generated.h"

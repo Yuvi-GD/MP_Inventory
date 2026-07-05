@@ -1,9 +1,9 @@
-﻿// Copyright 2026 UVSquare. All Rights Reserved.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Database/MP_InventoryStruct.h"
+#include "Data/MP_TradingStructs.h"
 #include "UObject/NoExportTypes.h"
 #include "MP_AnalyticsManager.generated.h"
 
@@ -11,7 +11,7 @@
  * 
  */
 UCLASS()
-class MP_INVENTORY_API UMP_AnalyticsManager : public UObject
+class MP_TRADING_API UMP_AnalyticsManager : public UObject
 {
 	GENERATED_BODY()
 	
@@ -72,19 +72,19 @@ public:
     void PrintItemTradeHistory(const FName ItemID) const;
 
 protected:
-    // PlayerId → All trades for this player
+    // PlayerId ? All trades for this player
     UPROPERTY()
     TMap<FString, FMP_PlayerTradeHistory> PlayerTradeHistory;
 
-    // ItemID → All trades involving this item
+    // ItemID ? All trades involving this item
     UPROPERTY()
     TMap<FName, FMP_PlayerTradeHistory> ItemTradeHistory;
 
-    // ItemID → Metadata/analytics (price, demand, trade history, owners, etc)
+    // ItemID ? Metadata/analytics (price, demand, trade history, owners, etc)
     UPROPERTY()
     TMap<FName, FMP_ItemMetadata> ItemMetadataMap;
 
-    // TradeId → PlayerId, for quick lookup if needed
+    // TradeId ? PlayerId, for quick lookup if needed
     UPROPERTY()
     TMap<FString, FMP_TradeSession> TradesList;
 

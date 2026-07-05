@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Database/MP_ItemDefinition.h"
+#include "Data/MP_ItemDefinition.h"
 #include "MP_InventoryUIItem.generated.h"
 
 /**

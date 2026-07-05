@@ -1,9 +1,9 @@
 // Copyright 2026 UVSquare. All Rights Reserved.
 
 
-#include "Database/MP_InventoryFastArray.h"
-#include "Database/MP_InventoryStruct.h"
-#include "Framework/MP_InventoryComponent.h"
+#include "Data/MP_InventoryFastArray.h"
+#include "Data/MP_InventoryStruct.h"
+#include "Core/MP_InventoryComponent.h"
 
 // =============================================================================
 //  TRACKER MANAGEMENT

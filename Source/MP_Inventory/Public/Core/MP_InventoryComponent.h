@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Database/MP_InventoryStruct.h"
-#include "Database/MP_InventoryFastArray.h"
+#include "Data/MP_InventoryStruct.h"
+#include "Data/MP_InventoryFastArray.h"
 #include "Core/MP_ItemRegistry.h"
 #include "Components/ActorComponent.h"
 #include "MP_InventoryComponent.generated.h"

@@ -17,7 +17,7 @@ class UMP_Inventory_PlayerState_I : public UInterface
 /**
  * 
  */
-class MP_INVENTORY_API IMP_Inventory_PlayerState_I
+class MP_TRADING_API IMP_Inventory_PlayerState_I
 {
 	GENERATED_BODY()
 

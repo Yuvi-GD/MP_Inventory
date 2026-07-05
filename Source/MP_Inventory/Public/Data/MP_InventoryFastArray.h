@@ -21,7 +21,7 @@
  * - All write functions assume the caller has already validated locks and limits.
  */
 USTRUCT()
-struct FMP_InventoryArray : public FFastArraySerializer
+struct MP_INVENTORY_API FMP_InventoryArray : public FFastArraySerializer
 {
     GENERATED_BODY()
 

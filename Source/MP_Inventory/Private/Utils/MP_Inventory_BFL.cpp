@@ -1,7 +1,7 @@
 // Copyright 2026 UVSquare. All Rights Reserved.
 
 
-#include "Framework/MP_Inventory_BFL.h"
+#include "Utils/MP_Inventory_BFL.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameStateBase.h" // Add this include to resolve the incomplete type error

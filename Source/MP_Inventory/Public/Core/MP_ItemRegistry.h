@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Database/MP_ItemDefinition.h"
+#include "Data/MP_ItemDefinition.h"
 #include "MP_ItemRegistry.generated.h"
 
 /**

@@ -1,11 +1,11 @@
 // Copyright 2026 UVSquare. All Rights Reserved.
 
 
-#include "Framework/MP_InventoryComponent.h"
+#include "Core/MP_InventoryComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Containers/Array.h"
 #include "Kismet/GameplayStatics.h"
-#include "Framework/MP_InventorySave.h"
+#include "Core/MP_InventorySave.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/MP_ItemRegistry.h"
 

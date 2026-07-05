@@ -1,10 +1,10 @@
-﻿// Copyright 2026 UVSquare. All Rights Reserved.
+// Copyright 2026 UVSquare. All Rights Reserved.
 
 
 #include "Core/MP_TradingManager.h"
 #include "Core/MP_AnalyticsManager.h"
 #include "Interfaces/MP_TradeNotification_I.h"
-#include "Framework/MP_Inventory_BFL.h"
+#include "Utils/MP_Inventory_BFL.h"
 #include "GameFramework/GameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -113,7 +113,7 @@ void UMP_TradingManager::RespondTrade(const FString& TradeId, const bool bAccept
 
     if (bAccepted)
     {
-        // At this point, both players agree—create session and TradeId
+        // At this point, both players agree�create session and TradeId
         // BP/UI should supply PlayerAId (initiator) and PlayerBId (acceptor)
         Session->CurrentStatus = ETradeSessionStatus::Accepted;
 

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Database/MP_InventoryStruct.h"
+#include "Data/MP_TradingStructs.h"
 #include "MP_TradingManager.generated.h"
 
 /**
@@ -87,7 +87,7 @@
 //};
 
 UCLASS(Blueprintable)
-class MP_INVENTORY_API UMP_TradingManager : public UObject
+class MP_TRADING_API UMP_TradingManager : public UObject
 {
 	GENERATED_BODY()
 

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Database/MP_InventoryStruct.h"
-#include "Database/MP_InventoryFastArray.h"
+#include "Data/MP_InventoryStruct.h"
+#include "Data/MP_InventoryFastArray.h"
 #include "GameFramework/SaveGame.h"
 #include "MP_InventorySave.generated.h"
 
