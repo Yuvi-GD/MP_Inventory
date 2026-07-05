@@ -86,6 +86,11 @@
 //    TArray<FItemList> OfferedItems;
 //};
 
+/**
+ * The core authoritative subsystem managing secure, synchronized multiplayer trade sessions.
+ * Enforces transactional integrity during offer exchanges, validation checks, and final state commits
+ * to guarantee atomic item transfers between isolated inventory states without duplication.
+ */
 UCLASS(Blueprintable)
 class MP_TRADING_API UMP_TradingManager : public UObject
 {

@@ -8,7 +8,9 @@
 #include "MP_InventoryUIItem.generated.h"
 
 /**
- * 
+ * Represents a runtime inventory item instantiated for UI visualization and logic.
+ * Encapsulates core item data, stack quantities, and its physical/logical array indices
+ * to facilitate drag-and-drop, UI binding, and transaction tracking.
  */
 UCLASS(BlueprintType, Blueprintable)
 class MP_INVENTORY_API UMP_InventoryUIItem : public UObject

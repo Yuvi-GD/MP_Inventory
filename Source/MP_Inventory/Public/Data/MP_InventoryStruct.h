@@ -21,6 +21,10 @@ enum class EInventoryDelta : uint8
     None
 };
 
+/**
+ * Defines a request payload for adding items into the inventory.
+ * Encapsulates the item identifier, target quantity, and routing preferences (e.g., forcing a new slot).
+ */
 USTRUCT(BlueprintType)
 struct FMP_InventoryAddItems
 {
@@ -39,6 +43,11 @@ struct FMP_InventoryAddItems
     bool bPreferNewSlot = false;
 };
 
+/**
+ * Core atomic unit of the inventory system.
+ * Inherits from FFastArraySerializerItem to allow highly efficient, delta-compressed 
+ * network replication. Represents a single logical stack of an item in a specific slot.
+ */
 USTRUCT(BlueprintType)
 struct MP_INVENTORY_API FMP_InventoryItem : public FFastArraySerializerItem
 {
@@ -78,6 +87,10 @@ struct TStructOpsTypeTraits<FMP_InventoryItem> : public TStructOpsTypeTraitsBase
     enum { WithNetSerializer = true };
 };
 
+/**
+ * Represents a point-in-time capture of a player's entire inventory state.
+ * Used internally for rollback capabilities, and secure server-side validation.
+ */
 USTRUCT(BlueprintType)
 struct FInventorySnapshot
 {
@@ -93,6 +106,10 @@ struct FInventorySnapshot
     FDateTime SavedAt;
 };
 
+/**
+ * Serializable payload containing the persistent data array of an inventory.
+ * Used as a structured wrapper for writing FastArray contents to disk or database.
+ */
 USTRUCT(BlueprintType)
 struct FMP_InventorySaveData
 {
@@ -101,6 +118,10 @@ struct FMP_InventorySaveData
     TArray<FMP_InventoryItem> InventoryData;
 };
 
+/**
+ * Maps a specific item to the unique identifiers of all players who currently own it.
+ * Utilized by the analytics and global registry systems for fast ownership lookups.
+ */
 USTRUCT(BlueprintType)
 struct FItemOwnershipIndexEntry
 {

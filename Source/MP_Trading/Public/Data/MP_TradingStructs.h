@@ -23,7 +23,11 @@ enum class ETradeOfferType : uint8
     Sell,
 };
 
-// Trade offer submitted by a participant in a session.
+/**
+ * Defines a single transactional bid or proposal within an active trade session.
+ * Encapsulates the initiator's ID, the exact items and currency offered, and the
+ * current lifecycle state of this specific offer (e.g., pending, accepted).
+ */
 USTRUCT(BlueprintType)
 struct MP_TRADING_API FMP_TradeOffer
 {
@@ -58,7 +62,11 @@ struct MP_TRADING_API FMP_TradeOffer
     FDateTime OfferTime;
 };
 
-// Tracks a single trade session and all negotiations.
+/**
+ * Maintains the complete state and lifecycle of a peer-to-peer trade negotiation.
+ * Tracks participants, the global status of the session, and the chronological
+ * sequence of all offers and counter-offers made during the exchange.
+ */
 USTRUCT(BlueprintType)
 struct MP_TRADING_API FMP_TradeSession
 {
@@ -85,7 +93,11 @@ struct MP_TRADING_API FMP_TradeSession
     TArray<FMP_TradeOffer> Offers;
 };
 
-// Single trade event record (used in Analytics/metadata, not by session directly)
+/**
+ * An immutable ledger entry representing a completed market transaction.
+ * Recorded by the AnalyticsManager to track historical pricing, volume, and
+ * the exact flow of items across the server economy.
+ */
 USTRUCT(BlueprintType)
 struct MP_TRADING_API FMP_ItemTradeRecord
 {
@@ -110,7 +122,10 @@ struct MP_TRADING_API FMP_ItemTradeRecord
     FDateTime TradeTime;
 };
 
-// Player's trade history is a collection of item trade records
+/**
+ * A specialized container for aggregating a specific player's complete trade history.
+ * Designed to be serialized or queried for player-specific economic analytics.
+ */
 USTRUCT(BlueprintType)
 struct MP_TRADING_API FMP_PlayerTradeHistory
 {
@@ -119,7 +134,11 @@ struct MP_TRADING_API FMP_PlayerTradeHistory
 };
 
 
-// Dynamic and market metadata for an item
+/**
+ * Comprehensive market metadata for a specific item definition.
+ * Tracks global supply, demand, dynamic pricing adjustments, and full historical
+ * trade data to power localized economies or server-wide auction houses.
+ */
 USTRUCT(BlueprintType)
 struct MP_TRADING_API FMP_ItemMetadata
 {

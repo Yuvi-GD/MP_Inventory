@@ -8,7 +8,9 @@
 #include "MP_AnalyticsManager.generated.h"
 
 /**
- * 
+ * Centralized singleton service responsible for tracking and recording economy events.
+ * Logs trade sessions, item flows between players, and maintains historical ownership graphs
+ * to detect duplication exploits or track the lifecycle of high-value items.
  */
 UCLASS()
 class MP_TRADING_API UMP_AnalyticsManager : public UObject

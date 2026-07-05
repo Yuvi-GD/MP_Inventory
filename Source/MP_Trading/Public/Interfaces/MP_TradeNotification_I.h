@@ -14,7 +14,9 @@ class UMP_TradeNotification_I : public UInterface
 };
 
 /**
- * 
+ * Outbound communication interface for broadcasting trade-related events to clients.
+ * Designed to be implemented by Player Controllers or UI Managers to handle real-time 
+ * alerts, incoming trade requests, and state changes during active negotiations.
  */
 class MP_TRADING_API IMP_TradeNotification_I
 {
