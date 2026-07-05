@@ -65,19 +65,13 @@ void FMP_InventoryArray::AddQuantity(int32 ArrayIndex, int32 Quantity)
     NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
 }
 
-int32 FMP_InventoryArray::RemoveItem(int32 ArrayIndex, int32 Quantity)
+void FMP_InventoryArray::RemoveAtSwap(int32 ArrayIndex, int32 Quantity)
 {
-    if (!Items.IsValidIndex(ArrayIndex)) return INDEX_NONE;
+    if (!Items.IsValidIndex(ArrayIndex)) return;
 
     FMP_InventoryItem& Item = Items[ArrayIndex];
 
-    if (Quantity <= 0 || Quantity > Item.Quantity)
-    {
-        UE_LOG(LogTemp, Warning,
-            TEXT("FMP_InventoryArray::RemoveItem - Invalid quantity %d for slot %d (has %d)."),
-            Quantity, Item.SlotIndex, Item.Quantity);
-        return INDEX_NONE;
-    }
+    if (Quantity <= 0 || Quantity > Item.Quantity) return;
 
     Item.Quantity -= Quantity;
 
@@ -86,7 +80,7 @@ int32 FMP_InventoryArray::RemoveItem(int32 ArrayIndex, int32 Quantity)
         MarkItemDirty(Item);
         NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
         MarkArrayDirty();
-        return INDEX_NONE;
+        return;
     }
 
     const int32 LastIndex = Items.Num() - 1;
@@ -119,7 +113,58 @@ int32 FMP_InventoryArray::RemoveItem(int32 ArrayIndex, int32 Quantity)
     }
 
     MarkArrayDirty();
-    return FreedSlot;
+}
+
+void FMP_InventoryArray::RemoveAndShift(int32 ArrayIndex, int32 Quantity)
+{
+    if (!Items.IsValidIndex(ArrayIndex)) return;
+
+    FMP_InventoryItem& Item = Items[ArrayIndex];
+
+    if (Quantity <= 0 || Quantity > Item.Quantity) return;
+
+    Item.Quantity -= Quantity;
+
+    if (Item.Quantity > 0)
+    {
+        MarkItemDirty(Item);
+        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+        MarkArrayDirty();
+        return;
+    }
+
+    const int32 FreedSlot = Item.SlotIndex;
+    if (IndexTracker.IsValidIndex(FreedSlot))
+    {
+        IndexTracker[FreedSlot] = INDEX_NONE;
+    }
+    NotifyOwner(EInventoryDelta::Removed, FreedSlot);
+
+    Items.RemoveAt(ArrayIndex);
+
+    // Infinite mode: shift every subsequent item's SlotIndex down by 1 so they stay contiguous
+    for (int32 i = ArrayIndex; i < Items.Num(); ++i)
+    {
+        int32 OldSlot = Items[i].SlotIndex;
+        if (IndexTracker.IsValidIndex(OldSlot) && IndexTracker[OldSlot] == i + 1)
+        {
+            IndexTracker[OldSlot] = INDEX_NONE;
+        }
+
+        Items[i].SlotIndex--;
+        int32 NewSlot = Items[i].SlotIndex;
+        
+        if (NewSlot >= IndexTracker.Num())
+        {
+            ResizeTracker(NewSlot + 1);
+        }
+        IndexTracker[NewSlot] = i;
+
+        MarkItemDirty(Items[i]);
+        NotifyOwner(EInventoryDelta::Updated, i);
+    }
+
+    MarkArrayDirty();
 }
 
 void FMP_InventoryArray::UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& NewItem)
@@ -134,6 +179,30 @@ void FMP_InventoryArray::UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& N
 
     MarkItemDirty(Items[ArrayIndex]);
     MarkArrayDirty();
+    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+}
+
+void FMP_InventoryArray::SetItemSlot(int32 ArrayIndex, int32 NewSlotIndex)
+{
+    if (!Items.IsValidIndex(ArrayIndex)) return;
+    
+    int32 OldSlot = Items[ArrayIndex].SlotIndex;
+    
+    if (IndexTracker.IsValidIndex(OldSlot) && IndexTracker[OldSlot] == ArrayIndex)
+    {
+        IndexTracker[OldSlot] = INDEX_NONE;
+    }
+    NotifyOwner(EInventoryDelta::Removed, OldSlot);
+    
+    Items[ArrayIndex].SlotIndex = NewSlotIndex;
+    
+    if (NewSlotIndex >= IndexTracker.Num())
+    {
+        ResizeTracker(NewSlotIndex + 1);
+    }
+    IndexTracker[NewSlotIndex] = ArrayIndex;
+
+    MarkItemDirty(Items[ArrayIndex]);
     NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
 }
 

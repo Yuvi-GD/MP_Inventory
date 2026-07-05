@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Framework/MP_InventorySave.h"
 #include "GameFramework/PlayerController.h"
+#include "Core/MP_ItemRegistry.h"
 
 // =============================================================================
 //  LIFECYCLE
@@ -23,6 +24,37 @@ void UMP_InventoryComponent::BeginPlay()
 {
     Super::BeginPlay();
     InventoryItems.SetOwner(this);
+
+    if (GetOwner()->HasAuthority())
+    {
+        if (OwnerID.IsNone())
+        {
+            OwnerID = FName(*FGuid::NewGuid().ToString());
+        }
+
+        if (UMP_ItemRegistry* Registry = GetRegistry())
+        {
+            Registry->RegisterInventory(OwnerID, this);
+        }
+    }
+}
+
+void UMP_InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (UMP_ItemRegistry* Registry = GetRegistry())
+    {
+        Registry->UnregisterInventory(OwnerID);
+    }
+    Super::EndPlay(EndPlayReason);
+}
+
+void UMP_InventoryComponent::OnRep_OwnerID()
+{
+    // If the component exists on the client and OwnerID changes, register it in the client-side subsystem!
+    if (UMP_ItemRegistry* Registry = GetRegistry())
+    {
+        Registry->RegisterInventory(OwnerID, this);
+    }
 }
 
 void UMP_InventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -31,7 +63,7 @@ void UMP_InventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
     DOREPLIFETIME(UMP_InventoryComponent, InventoryItems);
     DOREPLIFETIME(UMP_InventoryComponent, OwnerID);
     DOREPLIFETIME(UMP_InventoryComponent, CurrentWeight);
-    DOREPLIFETIME(UMP_InventoryComponent, UsedSlots);
+    DOREPLIFETIME(UMP_InventoryComponent, MaxInventorySlots);
     DOREPLIFETIME(UMP_InventoryComponent, bInventoryLocked);
 }
 
@@ -71,16 +103,30 @@ void UMP_InventoryComponent::CompactSlots_Implementation()
 {
     if (!GetOwner()->HasAuthority() || !bUseStrictSlots) return;
 
-    int32 NewSlot = 0;
-    for (int32 i = 0; i < InventoryItems.Items.Num(); ++i)
-    {
-        FMP_InventoryItem UpdatedItem = InventoryItems.Items[i];
-        UpdatedItem.SlotIndex = NewSlot;
-        InventoryItems.UpdateItem(i, UpdatedItem);
-        NewSlot++;
-    }
+    // Create a copy of the old tracker so we can safely overwrite the real one
+    TArray<int32> OldTracker = InventoryItems.IndexTracker;
+    InventoryItems.IndexTracker.Init(INDEX_NONE, MaxInventorySlots);
 
-    FireInventoryUpdate(EInventoryDelta::Refresh, -1);
+    int32 NewSlot = 0;
+    
+    // Iterate purely by logical slot order to preserve the visual order of items
+    for (int32 OldSlot = 0; OldSlot < OldTracker.Num(); ++OldSlot)
+    {
+        int32 ArrayIndex = OldTracker[OldSlot];
+        if (ArrayIndex != INDEX_NONE)
+        {
+            if (NewSlot >= MaxInventorySlots) break; // Safety check
+
+            if (OldSlot != NewSlot)
+            {
+                InventoryItems.SetItemSlot(ArrayIndex, NewSlot);
+            }
+            
+            // Rebuild the tracker properly
+            InventoryItems.IndexTracker[NewSlot] = ArrayIndex;
+            NewSlot++;
+        }
+    }
 }
 
 
@@ -126,8 +172,6 @@ void UMP_InventoryComponent::LoadInventory(const FString& PlayerID)
     InventoryItems.SetOwner(this);
     InventoryItems.MarkArrayDirty();
 
-    UsedSlots = InventoryItems.Items.Num();
-
     CurrentWeight = 0.0f;
     if (bEnforceWeightLimit)
     {
@@ -141,6 +185,7 @@ void UMP_InventoryComponent::LoadInventory(const FString& PlayerID)
         }
     }
 
+    // for Listen Server Environment
     FireInventoryUpdate(EInventoryDelta::Refresh, -1);
 }
 
@@ -327,6 +372,49 @@ void UMP_InventoryComponent::AddItem_Implementation(FName ItemID, int32 Quantity
     }
 }
 
+void UMP_InventoryComponent::AddItemAtSlot_Implementation(FName ItemID, int32 Quantity, int32 TargetSlotIndex)
+{
+    if (!GetOwner()->HasAuthority() || bInventoryLocked || ItemID.IsNone() || Quantity <= 0 || TargetSlotIndex < 0) return;
+
+    UMP_ItemRegistry* Reg = GetRegistry();
+    if (!Reg) return;
+    const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(ItemID);
+    if (!Def) return;
+
+    // Weight check for the ENTIRE quantity upfront
+    if (bEnforceWeightLimit && (CurrentWeight + (Def->PerItemWeight * Quantity) > MaxWeightCapacity)) return;
+
+    const int32 ArrayIndex = GetArrayIndexFromSlot(TargetSlotIndex);
+
+    if (ArrayIndex != INDEX_NONE)
+    {
+        // Slot Occupied: Check if we can merge
+        FMP_InventoryItem& Item = InventoryItems.Items[ArrayIndex];
+        if (Item.bIsLocked || Item.ItemID != ItemID) return;
+
+        int32 SpaceLeft = Def->MaxStackSize - Item.Quantity;
+        if (Quantity > SpaceLeft) return; // Fail: Not enough room to fit quantity
+
+        InventoryItems.AddQuantity(ArrayIndex, Quantity);
+        CurrentWeight += Def->PerItemWeight * Quantity;
+    }
+    else
+    {
+        // Slot Empty: Check if we are allowed to use this slot
+        if (bUseStrictSlots && (TargetSlotIndex >= MaxInventorySlots || InventoryItems.Items.Num() >= MaxInventorySlots)) return;
+        if (!bUseStrictSlots && TargetSlotIndex > InventoryItems.Items.Num()) return;
+
+        if (Quantity > Def->MaxStackSize) return; // Fail: Quantity exceeds a single stack limit
+
+        FMP_InventoryItem NewItem;
+        NewItem.ItemID = ItemID;
+        NewItem.Quantity = Quantity;
+        NewItem.SlotIndex = TargetSlotIndex;
+        InventoryItems.AddItem(NewItem);
+        CurrentWeight += Def->PerItemWeight * Quantity;
+    }
+}
+
 void UMP_InventoryComponent::AddItems_Implementation(const TArray<FMP_InventoryAddItems> &Items)
 {
     if (!GetOwner()->HasAuthority() || bInventoryLocked) return;
@@ -337,15 +425,16 @@ void UMP_InventoryComponent::AddItems_Implementation(const TArray<FMP_InventoryA
 	}
 }
 
-void UMP_InventoryComponent::RemoveItem_Implementation(int32 ArrayIndex, int32 Quantity)
+void UMP_InventoryComponent::RemoveItem_Implementation(int32 SlotIndex, int32 Quantity)
 {
     if (!GetOwner()->HasAuthority() || bInventoryLocked) return;
+    
+    int32 ArrayIndex = GetArrayIndexFromSlot(SlotIndex);
     if (ArrayIndex == INDEX_NONE) return;
 
     FMP_InventoryItem& Item = InventoryItems.Items[ArrayIndex];
     if (Item.bIsLocked || Quantity <= 0 || Quantity > Item.Quantity) return;
 
-    const bool bFullRemoval = (Item.Quantity == Quantity);
     float WeightPerUnit = 0.0f;
 
     if (bEnforceWeightLimit)
@@ -353,25 +442,20 @@ void UMP_InventoryComponent::RemoveItem_Implementation(int32 ArrayIndex, int32 Q
         if (UMP_ItemRegistry* Reg = GetRegistry())
         {
             if (const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(Item.ItemID))
+            {
                 WeightPerUnit = Def->PerItemWeight;
+                CurrentWeight = FMath::Max(0.0f, CurrentWeight - WeightPerUnit * Quantity);
+            }
         }
     }
-
-    CurrentWeight = FMath::Max(0.0f, CurrentWeight - WeightPerUnit * Quantity);
-    InventoryItems.RemoveItem(ArrayIndex, Quantity);
-}
-
-void UMP_InventoryComponent::RemoveAllItems_Implementation(FName ItemID)
-{
-    if (!GetOwner()->HasAuthority() || bInventoryLocked || ItemID.IsNone()) return;
-
-    // Must iterate backwards when removing multiple items to avoid index shifting bugs
-    for (int32 i = InventoryItems.Items.Num() - 1; i >= 0; --i)
+    
+    if (bUseStrictSlots)
     {
-        if (InventoryItems.Items[i].ItemID == ItemID && !InventoryItems.Items[i].bIsLocked)
-        {
-            RemoveItem_Implementation(i, InventoryItems.Items[i].Quantity);
-        }
+        InventoryItems.RemoveAtSwap(ArrayIndex, Quantity);
+    }
+    else
+    {
+        InventoryItems.RemoveAndShift(ArrayIndex, Quantity);
     }
 }
 
@@ -380,28 +464,26 @@ void UMP_InventoryComponent::RemoveItemByID_Implementation(FName ItemID, int32 Q
     if (!GetOwner()->HasAuthority() || bInventoryLocked || ItemID.IsNone() || Quantity <= 0) return;
 
     int32 Remaining = Quantity;
+
     for (int32 i = InventoryItems.Items.Num() - 1; i >= 0 && Remaining > 0; --i)
     {
         if (InventoryItems.Items[i].ItemID == ItemID && !InventoryItems.Items[i].bIsLocked)
         {
+            int32 SlotIndex = InventoryItems.Items[i].SlotIndex;
             const int32 ToRemove = FMath::Min(Remaining, InventoryItems.Items[i].Quantity);
-            RemoveItem_Implementation(i, ToRemove);
+            RemoveItem_Implementation(SlotIndex, ToRemove);
             Remaining -= ToRemove;
         }
     }
 }
 
-void UMP_InventoryComponent::UpdateItemAtSlot(int32 SlotIndex, FMP_InventoryItem NewItem)
+void UMP_InventoryComponent::UpdateItem_Implementation(FMP_InventoryItem NewItem)
 {
+    if (!GetOwner()->HasAuthority() || bInventoryLocked || NewItem.ItemID.IsNone() || NewItem.Quantity <= 0) return;
+
+    int32 SlotIndex = NewItem.SlotIndex;
     const int32 ArrayIndex = GetArrayIndexFromSlot(SlotIndex);
-    if (ArrayIndex == INDEX_NONE) return;
-
-    UpdateItemAtArray(ArrayIndex, NewItem);
-}
-
-void UMP_InventoryComponent::UpdateItemAtArray_Implementation(int32 ArrayIndex, FMP_InventoryItem NewItem)
-{
-    if (!GetOwner()->HasAuthority() || bInventoryLocked || NewItem.ItemID.IsNone() || NewItem.Quantity <= 0 || !InventoryItems.Items.IsValidIndex(ArrayIndex)) return;
+    if (ArrayIndex == INDEX_NONE || !InventoryItems.Items.IsValidIndex(ArrayIndex)) return;
 
     FMP_InventoryItem& OldItem = InventoryItems.Items[ArrayIndex];
     if (OldItem.bIsLocked) return;
@@ -425,6 +507,42 @@ void UMP_InventoryComponent::UpdateItemAtArray_Implementation(int32 ArrayIndex, 
     }
 
     InventoryItems.UpdateItem(ArrayIndex, NewItem);
+}
+
+void UMP_InventoryComponent::AdjustItemQuantity_Implementation(int32 SlotIndex, int32 QuantityDelta)
+{
+    if (!GetOwner()->HasAuthority() || bInventoryLocked || QuantityDelta == 0) return;
+
+    int32 ArrayIndex = GetArrayIndexFromSlot(SlotIndex);
+    if (ArrayIndex == INDEX_NONE || !InventoryItems.Items.IsValidIndex(ArrayIndex)) return;
+
+    FMP_InventoryItem& Item = InventoryItems.Items[ArrayIndex];
+    if (Item.bIsLocked) return;
+
+    if (QuantityDelta > 0)
+    {
+        if (UMP_ItemRegistry* Registry = GetRegistry())
+        {
+            if (const UMP_ItemDefinition* Def = Registry->GetItemDefinitionByName(Item.ItemID))
+            {
+                int32 SpaceLeft = Def->MaxStackSize - Item.Quantity;
+                int32 ToAdd = FMath::Min(QuantityDelta, SpaceLeft);
+                if (ToAdd <= 0) return;
+
+                if (bEnforceWeightLimit)
+                {
+                    CurrentWeight += Def->PerItemWeight * ToAdd;
+                }
+
+                InventoryItems.AddQuantity(ArrayIndex, ToAdd);
+            }
+        }
+    }
+    else
+    {
+        int32 ToRemove = FMath::Abs(QuantityDelta);
+        RemoveItem_Implementation(SlotIndex, ToRemove); // Properly routes through removal logic (weight, swap/shift)
+    }
 }
 
 void UMP_InventoryComponent::SwapItems_Implementation(int32 SlotIndexA, int32 SlotIndexB)
@@ -495,7 +613,7 @@ void UMP_InventoryComponent::SplitItem_Implementation(int32 SourceSlotIndex, int
     if (SourceItem.Quantity <= FinalSplitQuantity) return;
 
     // Commit
-    InventoryItems.RemoveItem(SourceArrayIndex, FinalSplitQuantity);
+    InventoryItems.RemoveAtSwap(SourceArrayIndex, FinalSplitQuantity);
 
     if (!bAutoTarget && bTargetOccupied)
     {

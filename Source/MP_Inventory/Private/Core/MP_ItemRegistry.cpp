@@ -63,3 +63,25 @@ TArray<UMP_ItemDefinition*> UMP_ItemRegistry::GetItemsByTag(FGameplayTagContaine
     }
     return Result;
 }
+
+void UMP_ItemRegistry::RegisterInventory(FName OwnerID, UMP_InventoryComponent* Inventory)
+{
+    if (OwnerID.IsNone() || !Inventory) return;
+    ActiveInventories.Add(OwnerID, Inventory);
+}
+
+void UMP_ItemRegistry::UnregisterInventory(FName OwnerID)
+{
+    if (OwnerID.IsNone()) return;
+    ActiveInventories.Remove(OwnerID);
+}
+
+UMP_InventoryComponent* UMP_ItemRegistry::GetInventoryByOwnerID(FName OwnerID) const
+{
+    if (OwnerID.IsNone()) return nullptr;
+    if (UMP_InventoryComponent* const* Found = ActiveInventories.Find(OwnerID))
+    {
+        return *Found;
+    }
+    return nullptr;
+}

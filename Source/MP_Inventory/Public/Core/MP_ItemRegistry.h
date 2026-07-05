@@ -29,4 +29,23 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Registry")
     TArray<UMP_ItemDefinition*> GetItemsByTag(FGameplayTagContainer Tags) const;
 
+    // =========================================================================
+    //  GLOBAL INVENTORY TRACKING
+    // =========================================================================
+
+    /** Registers an inventory component so it can be found globally by its OwnerID. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Registry")
+    void RegisterInventory(FName OwnerID, class UMP_InventoryComponent* Inventory);
+
+    /** Unregisters an inventory component when it is destroyed. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Registry")
+    void UnregisterInventory(FName OwnerID);
+
+    /** Retrieves an active inventory component anywhere in the world by its OwnerID. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Registry")
+    class UMP_InventoryComponent* GetInventoryByOwnerID(FName OwnerID) const;
+
+private:
+    UPROPERTY()
+    TMap<FName, class UMP_InventoryComponent*> ActiveInventories;
 };

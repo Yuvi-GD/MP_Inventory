@@ -68,24 +68,20 @@ struct FMP_InventoryArray : public FFastArraySerializer
     void AddQuantity(int32 ArrayIndex, int32 Quantity);
 
     /**
-     * Decreases quantity of the item at ArrayIndex.
-     * If quantity reaches zero, performs a swap-remove:
-     *   - The last element in Items[] is moved into ArrayIndex.
-     *   - The last element is popped.
-     *   - The array stays dense.
-     *
-     * Return value:
-     *   The SlotIndex of the element that was moved into ArrayIndex to fill the gap.
-     *   INDEX_NONE if the removed item was already the last element (no move occurred).
-     *
-     * The caller MUST use this return value to update SlotToArrayIndex:
-     *   SlotToArrayIndex[returnedSlotIndex] = ArrayIndex;
-     *
-     * Fires: EInventoryDelta::Updated if quantity > 0 after removal.
-     *        EInventoryDelta::Removed if slot is now empty.
+     * Decreases quantity. If it reaches zero, performs a swap-remove (Strict Mode):
+     *   - The last element moves into ArrayIndex to keep the array dense.
+     *   - Crucially, the moved element keeps its original SlotIndex.
+     *   - Network Cost: O(1) (Only 2 elements replicate).
      */
-    int32 RemoveItem(int32 ArrayIndex, int32 Quantity);
+    void RemoveAtSwap(int32 ArrayIndex, int32 Quantity);
 
+    /**
+     * Decreases quantity. If it reaches zero, performs a shift-remove (Infinite Mode):
+     *   - Removes the element and shifts all subsequent elements left.
+     *   - Decrements the SlotIndex of all shifted elements so the UI list stays contiguous.
+     *   - Network Cost: O(N) (All shifted elements replicate).
+     */
+    void RemoveAndShift(int32 ArrayIndex, int32 Quantity);
     /**
      * Full replacement of the item at ArrayIndex.
      * Used for: crafting output, admin replacement.
@@ -93,6 +89,12 @@ struct FMP_InventoryArray : public FFastArraySerializer
      * Marks the item dirty for replication.
      */
     void UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& NewItem);
+
+    /**
+     * Directly sets the SlotIndex of an existing item and marks it dirty.
+     * Used exclusively for structural reorganization (e.g., CompactSlots) on the server.
+     */
+    void SetItemSlot(int32 ArrayIndex, int32 NewSlotIndex);
 
     /**
      * Logical Swap (Slot to Slot).

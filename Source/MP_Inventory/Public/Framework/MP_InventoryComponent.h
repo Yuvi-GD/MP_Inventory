@@ -42,6 +42,7 @@ public:
     // =========================================================================
 
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 
@@ -54,8 +55,11 @@ public:
      * Populate from PlayerState unique ID, a DataTable row name, or a GUID string cast.
      * Use FName over FString: hash-stored, O(1) comparison, no heap allocation.
      */
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Replicated, Category = "MP_Inventory|Config")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, ReplicatedUsing = OnRep_OwnerID, Category = "MP_Inventory|Config")
     FName OwnerID;
+
+    UFUNCTION()
+    void OnRep_OwnerID();
 
     /**
      * TRUE  = Fixed grid (Minecraft). Slot count is capped at MaxInventorySlots.
@@ -65,7 +69,7 @@ public:
     bool bUseStrictSlots = true;
 
     /** Only meaningful when bUseStrictSlots is true. Must be >= 1. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config",
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "MP_Inventory|Config",
         meta = (EditCondition = "bUseStrictSlots", ClampMin = "1"))
     int32 MaxInventorySlots = 20;
 
@@ -108,23 +112,37 @@ public:
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
+    /**
+     * Adds a specific quantity of an item to a specific slot.
+     *
+     * Use this for UI-driven item placement (drag-and-drop) or programmatic
+     * item assignment where the slot is already known.
+     *
+     * If the target slot is empty, a new item is created.
+     * If the target slot already contains the same ItemID, the quantity is added.
+     *
+     * - If Quantity > StackSize, the entire operation fails.
+     * - If the inventory is full or the target slot is out of bounds, it fails.
+     * - Fails silently if the slot is locked or contains a different ItemID.
+     *
+     * @param ItemID - The ID of the item to add.
+     * @param Quantity - The quantity to add.
+     * @param TargetSlotIndex - The slot index to add the item to.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void AddItemAtSlot(FName ItemID, int32 Quantity, int32 TargetSlotIndex);
+
     /* ADD Multiple Items with one RPC call To Save Bandwidth*/
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void AddItems(const TArray<FMP_InventoryAddItems> &Items);
 
     /**
-     * Removes Quantity from the item at ArrayIndex.
+     * Removes Quantity from the item at SlotIndex.
      * If resulting quantity reaches zero, the slot is freed.
      * Fails silently if the slot is locked or does not contain enough quantity.
      */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void RemoveItem(int32 ArrayIndex, int32 Quantity = 1);
-
-    /**
-     * Removes every stack of ItemID across the entire inventory.
-     */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void RemoveAllItems(FName ItemID);
+    void RemoveItem(int32 SlotIndex, int32 Quantity = 1);
 
     /**
      * Removes a specific Quantity of ItemID starting from the first found stack.
@@ -135,18 +153,20 @@ public:
     void RemoveItemByID(FName ItemID, int32 Quantity = 1);
 
     /**
-     * Fully replaces the item at SlotIndex with NewItem.
+     * Fully replaces the item at its designated SlotIndex (NewItem.SlotIndex).
      * Intended for: crafting result injection, admin replacement, loot reroll.
      * Fails if the target slot is locked.
      */
-    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Commands")
-    void UpdateItemAtSlot(int32 SlotIndex, FMP_InventoryItem NewItem);
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void UpdateItem(FMP_InventoryItem NewItem);
 
     /**
-	* Updates the item at ArrayIndex with NewItem.
-    */
+     * Adjusts the quantity of the item at SlotIndex.
+     * Positive QuantityDelta adds to the stack (capped at MaxStackSize).
+     * Negative QuantityDelta removes from the stack (frees the slot if it hits 0).
+     */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void UpdateItemAtArray(int32 ArrayIndex, FMP_InventoryItem NewItem);
+    void AdjustItemQuantity(int32 SlotIndex, int32 QuantityDelta);
 
     /**
      * Swaps the contents of two slots.
@@ -204,6 +224,13 @@ public:
     FMP_InventoryItem GetItemBySlotIndex(int32 SlotIndex) const;
 
     /**
+     * Direct array index lookup.
+     * Fast O(1) query for UI items that already store their physical array index.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
+    FMP_InventoryItem GetItemByArrayIndex(int32 ArrayIndex) const;
+
+    /**
      * Returns the first stack found for a given ItemID via linear scan.
      * Useful when you know the item exists but not which slot it's in.
      * Returns a default (empty) FMP_InventoryItem if not found.
@@ -218,13 +245,6 @@ public:
      */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
     int32 GetArrayIndexFromSlot(int32 SlotIndex) const;
-
-    /**
-     * Direct array index lookup.
-     * Fast O(1) query for UI items that already store their physical array index.
-     */
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|Queries")
-    FMP_InventoryItem GetItemByArrayIndex(int32 ArrayIndex) const;
 
     /**
      * Returns all SlotIndexes that currently hold the given ItemID.
@@ -257,7 +277,7 @@ public:
 
     /** Number of slots currently holding at least one item. */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MP_Inventory|State")
-    int32 GetUsedSlots() const { return UsedSlots; }
+    int32 GetUsedSlots() const { return InventoryItems.Items.Num(); }
 
     /**
      * Remaining available slots.
@@ -321,10 +341,6 @@ protected:
     /** Cumulative weight of all items. Updated on Add/Remove only. */
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|State")
     float CurrentWeight = 0.0f;
-
-    /** Number of occupied slots. Updated on Add/Remove only. */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "MP_Inventory|State")
-    int32 UsedSlots = 0;
 
 
 private:

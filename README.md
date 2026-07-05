@@ -1,18 +1,15 @@
 # MP_Inventory
 
-**MP_Inventory** is a fully replicated multiplayer inventory and trading system for **Unreal Engine**. It provides robust item storage, access control, and a dynamic economy system. Designed to be highly modular, it relies on Unreal's Subsystem architecture to keep your project clean while exposing everything seamlessly to both C++ and Blueprints.
+**MP_Inventory** is a highly optimized, fully replicated multiplayer inventory system for **Unreal Engine 5.0+**. It is designed around a stateless memory footprint and server-authoritative command execution, providing a robust foundation for multiplayer games without burdening your network or frame budget.
 
 ## Key Features
 
-* **Multiplayer Ready:** Fully replicated inventory and trading mechanics designed to stay synchronized across clients and the server.
-* **Subsystem Architecture:** Utilizes Unreal Subsystems for global access, preventing logic bloat in your GameModes or PlayerControllers.
-* **Advanced Tagging:** Built-in tag filtering to categorize, query, and retrieve specific items instantly.
-* **Trading and Economy:** Features `MP_TradingManager` for secure player-to-player exchanges and `MP_EconomySystem` to dynamically adjust prices based on trade volume and demand.
-* **Access Control:** Assign private or public visibility flags to control who can view specific inventory items.
-* **Secure Metadata Tracking:** `MP_ItemMetadataStorage` tracks item trade history and pricing strictly server-side to prevent client tampering.
-* **Data Persistence:** Subsystem-backed storage ensures items persist reliably.
-* **Live UI Sync:** Event dispatchers automatically broadcast state changes for real-time UMG/Slate updates.
-* **Dual API:** All inventory manipulation methods (add, remove, swap, replace, exchange) are fully exposed to both Blueprints and C++.
+* **Multiplayer Ready:** Built entirely on `FFastArraySerializer`, ensuring precise delta replication. When an inventory changes, only the specific modified slot replicates across the network.
+* **Stateless Memory:** Avoids heavy `TMap` lookups and persistent iteration caches. Utilizes an O(1) `IndexTracker` to instantly resolve UI grid slots to physical array indices.
+* **Strict and Infinite Modes:** Configurable via a single flag. Use **Strict Mode** for fixed-size grid inventories (e.g., Resident Evil, Diablo) with drag-and-drop gap support, or **Infinite Mode** for appendable scrolling lists (e.g., Skyrim).
+* **Live UI Sync:** Deep integration with UMG's `UTileView`. Event dispatchers automatically broadcast state changes, allowing the UI to mutate widgets in place without rebuilding the entire grid.
+* **Ghost Mitigation:** Built-in engine hooks monitor logical slot reassignments and automatically instruct the client UI to clear abandoned visual slots, preventing replication ghosting.
+* **Secure API:** All inventory manipulation methods (Add, Remove, Swap, Split) are exposed to both Blueprints and C++ as validate-then-mutate Server RPCs. Stack limits and weights are strictly clamped on the server to prevent client exploitation.
 
 ## Installation
 
@@ -27,18 +24,15 @@
 ## Getting Started
 
 1. Attach the `MP_InventoryComponent` to your Player Character or Player Controller.
-2. Configure `MP_ItemDefinitionStorage` with your custom item definitions and attributes.
-3. Use `MP_TradeExchange` to handle manual or automatic listing of public items on the market.
-4. Execute secure trades by calling `MP_TradingManager` functions via Blueprints or C++.
-5. Track specific items across the server using the `MP_ItemTrackerSubsystem`.
+2. Configure your `MaxInventorySlots` and toggle `bUseStrictSlots` depending on your game's design.
+3. Call `AddItem` or `RemoveItem` from the server to mutate state.
+4. Bind your UI logic to the `OnInventoryUpdated` dispatcher to drive visual updates.
 
 ## Contributing
 
-Pull requests are always welcome. Whether it is a small bug fix, a performance tweak, or expanding the API, your contributions are appreciated. 
+Pull requests are welcome. Whether it is a small bug fix, a performance tweak, or expanding the API, contributions are appreciated. 
 
-Here is the standard process to get your changes merged:
-
-1. **Open an issue first:** For major features or architectural changes, please open an issue to discuss it before you start coding. This ensures we are on the same page and saves everyone time.
+1. **Open an issue first:** For major features or architectural changes, please open an issue to discuss it before you start coding.
 2. **Fork and branch:** Create a fork and do your work on a dedicated feature branch.
 3. **Follow the style:** Keep your C++ and Blueprint code consistent with the existing project structure and formatting conventions.
 4. **Submit a PR:** Keep your pull request focused on a single issue and explain exactly what your code does.
