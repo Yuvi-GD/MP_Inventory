@@ -20,11 +20,6 @@
 			"Name": "MP_Inventory",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "MP_Trading",
-			"Type": "ServerOnly",
-			"LoadingPhase": "Default"
 		}
 	],
 	"Dependencies": [
