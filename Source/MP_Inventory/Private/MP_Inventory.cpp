@@ -3,6 +3,8 @@
 
 #include "MP_Inventory.h"
 
+DEFINE_LOG_CATEGORY(LogMPInventory);
+
 #define LOCTEXT_NAMESPACE "FMP_InventoryModule"
 
 void FMP_InventoryModule::StartupModule()

@@ -3,6 +3,7 @@
 #include "Core/MP_InventoryManager.h"
 #include "Core/MP_InventoryComponent.h"
 #include "Core/MP_ItemRegistry.h"
+#include "MP_Inventory.h"
 #include "Engine/GameInstance.h"
 #include "Net/UnrealNetwork.h"
 
@@ -55,7 +56,7 @@ UMP_InventoryComponent* UMP_InventoryManager::GetAndValidateComponent(FName Comp
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("MP_InventoryManager: Permission denied for ComponentID %s"), *ComponentID.ToString());
+                    UE_LOG(LogMPInventory, Warning, TEXT("MP_InventoryManager: Permission denied for ComponentID %s"), *ComponentID.ToString());
                     if (GetOwner()->HasAuthority()) Client_OnActionNotify(FName("PermissionDenied"));
                     else OnInventoryActionNotify.Broadcast(FName("PermissionDenied"));
                 }

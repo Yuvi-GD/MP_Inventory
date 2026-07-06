@@ -11,6 +11,7 @@
 #include "Core/MP_InventoryManager.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
+#include "MP_Inventory.h"
 
 // =============================================================================
 //  LIFECYCLE
@@ -204,7 +205,7 @@ void UMP_InventoryComponent::SaveInventory(const FString& PlayerID)
 
     if (!SaveGame)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UMP_InventoryComponent::SaveInventory - Failed to create save object."));
+        UE_LOG(LogMPInventory, Warning, TEXT("UMP_InventoryComponent::SaveInventory - Failed to create save object."));
         return;
     }
 

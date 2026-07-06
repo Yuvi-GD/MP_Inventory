@@ -18,10 +18,12 @@ class MP_INVENTORY_API UMP_InventoryUIItem : public UObject
 	GENERATED_BODY()
 public:
 
+	/** Fired when this UI item's visual state or underlying quantity has been updated. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUIItemUpdated);
 	UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
 	FOnInventoryUIItemUpdated OnInventoryUIItemUpdated;
 
+	/** Fired for specific callback actions related to inventory operations (e.g., merging, splitting). */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUIItemCallBack, int32, IndexOperation, int32, SlotIndex);
 	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "MP_Inventory|Events")
 	FOnInventoryUIItemCallBack OnInventoryUIItemCallBack;
