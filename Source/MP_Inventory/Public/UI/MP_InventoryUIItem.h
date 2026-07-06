@@ -22,6 +22,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
 	FOnInventoryUIItemUpdated OnInventoryUIItemUpdated;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUIItemCallBack, int32, IndexOperation, int32, SlotIndex);
+	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "MP_Inventory|Events")
+	FOnInventoryUIItemCallBack OnInventoryUIItemCallBack;
+
 	/// Core data for an inventory item instance. This is what gets stored in the inventory array, and can be easily extended with new properties as needed.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory", meta = (ExposeOnSpawn = "true"))
 	UMP_ItemDefinition* ItemData;
