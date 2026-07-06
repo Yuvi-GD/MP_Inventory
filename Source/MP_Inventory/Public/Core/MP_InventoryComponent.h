@@ -9,6 +9,8 @@
 #include "Components/ActorComponent.h"
 #include "MP_InventoryComponent.generated.h"
 
+class UMP_InventoryManager;
+
 /**
  * The core actor component responsible for managing inventory state and operations.
  * Handles client-server replication, item transactions, stacking logic, and weight/slot validations.
@@ -54,16 +56,47 @@ public:
     //  CONFIGURATION  -  Set in editor or before first use
     // =========================================================================
 
-    /**
-     * Generic owner identifier. Works for players, NPCs, chests, vendors - anything.
-     * Populate from PlayerState unique ID, a DataTable row name, or a GUID string cast.
-     * Use FName over FString: hash-stored, O(1) comparison, no heap allocation.
+    /** 
+     * Unique GUID for this inventory component. 
+     * Registered in the MP_ItemRegistry.
      */
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, ReplicatedUsing = OnRep_OwnerID, Category = "MP_Inventory|Config")
-    FName OwnerID;
+    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ComponentID, Category = "MP_Inventory|Config")
+    FName ComponentID;
 
     UFUNCTION()
-    void OnRep_OwnerID();
+    void OnRep_ComponentID();
+
+    /** Determines who has rights to this inventory (ManagerID, "GLOBAL", or "PRIVATE") */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "MP_Inventory|Config")
+    FName OwnerID;
+
+    /** If OwnerID is "PRIVATE", only ManagerIDs in this list can access it. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MP_Inventory|Config")
+    TSet<FName> AccessList;
+
+    /** Sets the OwnerID of the inventory at runtime. Must be called on the Server. */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
+    void SetInventoryOwner(FName NewOwnerID);
+
+    /** Grants a specific Manager access to this inventory (only relevant if OwnerID is PRIVATE). */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
+    void GrantAccess(UMP_InventoryManager* Manager);
+
+    /** Revokes access from a specific Manager. */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
+    void RevokeAccess(UMP_InventoryManager* Manager);
+
+    /** 
+     * Attempts to find the owning PlayerController and automatically assign its ManagerID as the OwnerID.
+     * Call this at runtime when a player possesses a Pawn that holds this inventory.
+     * Returns true if successfully assigned.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
+    bool TryAutoAssignOwner();
+
+    /** Human readable name (e.g., "Backpack") */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
+    FName ComponentName;
 
     /**
      * TRUE  = Fixed grid (Minecraft). Slot count is capped at MaxInventorySlots.
@@ -95,49 +128,25 @@ public:
     bool bInventoryLocked = false;
 
     // =========================================================================
-    //  SERVER COMMANDS  -  All writes are authority-only server RPCs
+    //  AUTHORITY COMMANDS  -  All writes must be executed on the Server
     // =========================================================================
 
     /**
-     * Primary add entry point. Handles stacking, stack overflow, and slot allocation.
-     *
-     * bPreferNewSlot = true  ? Allocates a fresh slot first. Any quantity that exceeds
-     *                          the stack limit spills into existing partial stacks.
-     *                          Use for: loot drops, pickup flow.
-     *
-     * bPreferNewSlot = false ? Merges into existing stacks of the same ItemID first.
-     *                          Remaining overflow allocates a new slot.
-     *                          Use for: crafting output, reward grants.
-     *
-     * Call CanAddItem first if you need to gate on success in Blueprint.
-     * AddItem is fire-and-forget by design; partial adds are not possible -
-     * the full quantity either fits or the operation is rejected.
+     * Adds an item to the inventory. Handles stacking and slot allocation automatically.
+     * @param bPreferNewSlot - If true, allocates a new slot first before stacking with existing items.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
     /**
-     * Adds a specific quantity of an item to a specific slot.
-     *
-     * Use this for UI-driven item placement (drag-and-drop) or programmatic
-     * item assignment where the slot is already known.
-     *
-     * If the target slot is empty, a new item is created.
-     * If the target slot already contains the same ItemID, the quantity is added.
-     *
-     * - If Quantity > StackSize, the entire operation fails.
-     * - If the inventory is full or the target slot is out of bounds, it fails.
-     * - Fails silently if the slot is locked or contains a different ItemID.
-     *
-     * @param ItemID - The ID of the item to add.
-     * @param Quantity - The quantity to add.
-     * @param TargetSlotIndex - The slot index to add the item to.
+     * Adds an item to a specific slot index.
+     * Useful for drag-and-drop UI or exact placement. Fails if the slot is occupied by a different item.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void AddItemAtSlot(FName ItemID, int32 Quantity, int32 TargetSlotIndex);
 
-    /* ADD Multiple Items with one RPC call To Save Bandwidth*/
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    /** Adds multiple items in a single call to optimize performance. */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void AddItems(const TArray<FMP_InventoryAddItems> &Items);
 
     /**
@@ -145,7 +154,7 @@ public:
      * If resulting quantity reaches zero, the slot is freed.
      * Fails silently if the slot is locked or does not contain enough quantity.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void RemoveItem(int32 SlotIndex, int32 Quantity = 1);
 
     /**
@@ -153,7 +162,7 @@ public:
      * Cascades to subsequent stacks if the first stack doesn't hold enough.
      * Fails if total quantity across all stacks is insufficient.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void RemoveItemByID(FName ItemID, int32 Quantity = 1);
 
     /**
@@ -161,7 +170,7 @@ public:
      * Intended for: crafting result injection, admin replacement, loot reroll.
      * Fails if the target slot is locked.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void UpdateItem(FMP_InventoryItem NewItem);
 
     /**
@@ -169,7 +178,7 @@ public:
      * Positive QuantityDelta adds to the stack (capped at MaxStackSize).
      * Negative QuantityDelta removes from the stack (frees the slot if it hits 0).
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void AdjustItemQuantity(int32 SlotIndex, int32 QuantityDelta);
 
     /**
@@ -177,25 +186,14 @@ public:
      * Works correctly when one or both slots are empty (effectively a move).
      * Fails if either slot contains a locked item.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void SwapItems(int32 SlotIndexA, int32 SlotIndexB);
 
     /**
-     * Splits QuantityToSplit from the source stack into a target slot.
-     *
-     * TargetSlotIndex = -1 ? auto-assigns next free slot via AllocateSlot().
-     *
-     * Target must be either:
-     *   a) Empty, or
-     *   b) The same ItemID with room left in its stack.
-     *
-     * Fails if:
-     *   - Source quantity <= QuantityToSplit (can't split a single unit or the full stack)
-     *   - Target holds a different ItemID
-     *   - Source or target slot is locked
-     *   - No free slots available (strict mode only)
+     * Splits a quantity from a source stack and places it into a target slot.
+     * If TargetSlotIndex is -1, it auto-assigns the next free slot.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void SplitItem(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     /**
@@ -204,14 +202,14 @@ public:
      * Lock is not replicated separately - it is part of FMP_InventoryItem and travels
      * with the FastArray delta. Reads are always allowed on locked slots.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void SetItemLock(int32 SlotIndex, bool bLocked);
 
     /**
      * Reassigns all SlotIndexes to be contiguous starting from 0.
      * Reclaims all gaps. Fires a full Refresh delta when complete.
      */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void CompactSlots();
 
 

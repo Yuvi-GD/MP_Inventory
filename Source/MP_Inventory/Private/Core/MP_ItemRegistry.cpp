@@ -10,17 +10,13 @@ UMP_ItemDefinition* UMP_ItemRegistry::GetItemDefinition(FPrimaryAssetId ItemId) 
 
     UAssetManager& AssetManager = UAssetManager::Get();
 
-    // This is a lightning-fast lookup in the engine's native hash map
-    // It returns the asset IF it's loaded, or just the default object/pointer if it's not.
     UObject* LoadedAsset = AssetManager.GetPrimaryAssetObject(ItemId);
-
-    // If it's not loaded into memory yet, synchronously load it right now!
     if (!LoadedAsset)
     {
         FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(ItemId);
         if (AssetPath.IsValid())
         {
-            LoadedAsset = AssetPath.TryLoad(); // Forces it into memory immediately
+            LoadedAsset = AssetPath.TryLoad();
         }
     }
 
@@ -29,14 +25,9 @@ UMP_ItemDefinition* UMP_ItemRegistry::GetItemDefinition(FPrimaryAssetId ItemId) 
 
 UMP_ItemDefinition* UMP_ItemRegistry::GetItemDefinitionByName(FName ItemID) const
 {
-    // 1. Safety check
     if (ItemID.IsNone()) return nullptr;
 
-    // 2. Convert your simple ItemID into the engine's Primary Asset ID
-    // The first parameter MUST match the FName you set in GetPrimaryAssetId() inside the Data Asset class.
     FPrimaryAssetId ConstructedId = FPrimaryAssetId(FName("Item"), ItemID);
-
-    // 3. Call our original high-performance function
     return GetItemDefinition(ConstructedId);
 }
 
@@ -64,22 +55,22 @@ TArray<UMP_ItemDefinition*> UMP_ItemRegistry::GetItemsByTag(FGameplayTagContaine
     return Result;
 }
 
-void UMP_ItemRegistry::RegisterInventory(FName OwnerID, UMP_InventoryComponent* Inventory)
+void UMP_ItemRegistry::RegisterInventory(FName ComponentID, UMP_InventoryComponent* Inventory)
 {
-    if (OwnerID.IsNone() || !Inventory) return;
-    ActiveInventories.Add(OwnerID, Inventory);
+    if (ComponentID.IsNone() || !Inventory) return;
+    ActiveInventories.Add(ComponentID, Inventory);
 }
 
-void UMP_ItemRegistry::UnregisterInventory(FName OwnerID)
+void UMP_ItemRegistry::UnregisterInventory(FName ComponentID)
 {
-    if (OwnerID.IsNone()) return;
-    ActiveInventories.Remove(OwnerID);
+    if (ComponentID.IsNone()) return;
+    ActiveInventories.Remove(ComponentID);
 }
 
-UMP_InventoryComponent* UMP_ItemRegistry::GetInventoryByOwnerID(FName OwnerID) const
+UMP_InventoryComponent* UMP_ItemRegistry::GetInventoryByComponentID(FName ComponentID) const
 {
-    if (OwnerID.IsNone()) return nullptr;
-    if (UMP_InventoryComponent* const* Found = ActiveInventories.Find(OwnerID))
+    if (ComponentID.IsNone()) return nullptr;
+    if (UMP_InventoryComponent* const* Found = ActiveInventories.Find(ComponentID))
     {
         return *Found;
     }
