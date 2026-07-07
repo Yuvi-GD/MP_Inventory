@@ -135,6 +135,13 @@ public:
      * Adds an item to the inventory. Handles stacking and slot allocation automatically.
      * @param bPreferNewSlot - If true, allocates a new slot first before stacking with existing items.
      */
+    /** 
+     * Removes the item and physically spawns it into the world.
+     * @return The spawned Actor, or nullptr if it failed.
+     */
+    UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable, Category = "MP_Inventory|Server")
+    AActor* DropItem(int32 SlotIndex, int32 Quantity, FVector DropLocation);
+
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
     void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
@@ -216,6 +223,20 @@ public:
     // =========================================================================
     //  QUERIES  -  Read-only, callable on server and client
     // =========================================================================
+
+    /** 
+     * Checks if a specific quantity of an item can be added to the inventory.
+     * Evaluates weight limits, stack limits, available slots, and merge capacity.
+     * 
+     * @param ItemID The item to check.
+     * @param Quantity The amount to add.
+     * @param bPreferNewSlot Matches the AddItem logic preference.
+     * @param OutQuantityForNewSlots Returns how much of the quantity will be placed into fresh slots.
+     * @param OutQuantityForMerge Returns how much of the quantity will be merged into existing stacks.
+     * @return True if the entire quantity can fit; False if it cannot.
+     */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Queries")
+    bool CanAddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot, int32& OutQuantityForNewSlots, int32& OutQuantityForMerge) const;
 
     /**
      * Primary slot lookup. This is what Blueprint UI should always use.

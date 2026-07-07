@@ -4,8 +4,10 @@
 #include "Utils/MP_Inventory_Library.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/GameStateBase.h" // Add this include to resolve the incomplete type error
-#include "GameFramework/PlayerState.h" // Add this include to resolve the incomplete type error
+#include "DrawDebugHelpers.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
+#include "MP_Inventory.h"
 #include "GameplayTagsManager.h"
 #include "Components/Image.h"
 #include "Styling/SlateBrush.h"
@@ -15,7 +17,7 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByActor(AActor* Actor
     // Step 1: Check if the actor is valid
     if (!Actor)
     {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByActor - Actor is invalid."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByActor - Actor is invalid."));
         return nullptr;
     }
 
@@ -23,7 +25,7 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByActor(AActor* Actor
     UMP_InventoryComponent* MP_Inventory = Actor->FindComponentByClass<UMP_InventoryComponent>();
     if (!MP_Inventory)
     {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByActor - No MP_Inventory component found on actor or player state."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByActor - No MP_Inventory component found on actor or player state."));
     }
 
     return MP_Inventory; // This will be nullptr if nothing was found
@@ -32,13 +34,13 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByActor(AActor* Actor
 UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByID(UObject* WorldContextObject, FName ComponentID)
 {
     if (!WorldContextObject) {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByID - WorldContextObject is invalid."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - WorldContextObject is invalid."));
         return nullptr;
 	}
     
 	UWorld* World = WorldContextObject->GetWorld();
     if (!World) {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByID - World is invalid."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - World is invalid."));
         return nullptr;
 	}
 
@@ -47,20 +49,20 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByID(UObject* WorldCo
 		return Registry->GetInventoryByComponentID(ComponentID);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByID - InventoryComponent not found with ID %s."), *ComponentID.ToString());
+	UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - InventoryComponent not found with ID %s."), *ComponentID.ToString());
     return nullptr;
 }
 
 UMP_InventoryManager* UMP_Inventory_Library::GetInventoryManager(UObject* WorldContextObject)
 {
     if (!WorldContextObject) {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByID - WorldContextObject is invalid."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - WorldContextObject is invalid."));
         return nullptr;
     }
 
     UWorld* World = WorldContextObject->GetWorld();
     if (!World) {
-        UE_LOG(LogTemp, Warning, TEXT("GetMPInventoryByID - World is invalid."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - World is invalid."));
         return nullptr;
     }
 
@@ -73,12 +75,12 @@ UMP_InventoryManager* UMP_Inventory_Library::GetInventoryManager(UObject* WorldC
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("GetInventoryManager - No UMP_InventoryManager component found on PlayerController."));
+            UE_LOG(LogMPInventory, Warning, TEXT("GetInventoryManager - No UMP_InventoryManager component found on PlayerController."));
         }
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("GetInventoryManager - No PlayerController found."));
+        UE_LOG(LogMPInventory, Warning, TEXT("GetInventoryManager - No PlayerController found."));
 	}
     return nullptr;
 }
@@ -229,4 +231,56 @@ FSlateBrush UMP_Inventory_Library::GetImageStyle(class UImage* TargetImage)
 	}
 
 	return Brush;
+}
+
+FVector UMP_Inventory_Library::GetSafeDropLocation(AActor* TargetActor, float ForwardOffset, float DebugDrawDuration)
+{
+	if (!TargetActor)
+	{
+		return FVector::ZeroVector;
+	}
+
+	FVector ActorLoc = TargetActor->GetActorLocation();
+	FVector ForwardVec = TargetActor->GetActorForwardVector();
+
+	// Calculate the target X/Y position
+	FVector TargetXY = ActorLoc + (ForwardVec * ForwardOffset);
+
+	// Setup the trace vertically: 100 units above the target point, down to 500 units below it
+	FVector TraceStart = TargetXY + FVector(0.0f, 0.0f, 100.0f);
+	FVector TraceEnd = TargetXY + FVector(0.0f, 0.0f, -500.0f);
+
+	UWorld* World = TargetActor->GetWorld();
+	if (!World)
+	{
+		return TargetXY;
+	}
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(TargetActor);
+
+	FHitResult HitResult;
+	bool bHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+
+	// Handle Debug Drawing
+	if (DebugDrawDuration != 0.0f)
+	{
+		bool bPersistent = (DebugDrawDuration < 0.0f);
+		float LifeTime = bPersistent ? -1.0f : DebugDrawDuration;
+		
+		DrawDebugLine(World, TraceStart, TraceEnd, bHit ? FColor::Green : FColor::Red, bPersistent, LifeTime, 0, 2.0f);
+		if (bHit)
+		{
+			DrawDebugSphere(World, HitResult.ImpactPoint, 10.0f, 12, FColor::Yellow, bPersistent, LifeTime);
+		}
+	}
+
+	if (bHit)
+	{
+		// Slightly offset the Z so it doesn't clip perfectly into flat geometry
+		return HitResult.ImpactPoint; 
+	}
+
+	// Fallback if we drop it over a cliff/void
+	return TargetXY;
 }

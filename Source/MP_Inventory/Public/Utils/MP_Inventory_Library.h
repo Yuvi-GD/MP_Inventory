@@ -39,6 +39,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
 	static FString UniqueNetIdToString(UObject* WorldContextObject, const FUniqueNetIdRepl& TargetUniqueNetId);
 
+	/** 
+	 * Calculates a highly optimized, safe ground location for dropping items by tracing downwards.
+	 * @param TargetActor The actor (usually the player) dropping the item.
+	 * @param ForwardOffset Distance in front of the actor to drop.
+	 * @param RightOffset Distance to the right/left of the actor to drop.
+	 * @param DebugDrawDuration | -1 = Persistent, 0 = No Debug, > 0 = Duration in seconds.
+	 * @return The safe ground location to feed into the DropItem function.
+	 */
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|Utils")
+	static FVector GetSafeDropLocation(AActor* TargetActor, float ForwardOffset = 150.0f, float DebugDrawDuration = 0.0f);
+
 	/** Locates an inventory component belonging to a specific persistent player ID (EOS, Steam, etc). */
 	UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
 	static UMP_InventoryComponent* FindInventoryComponentByUniqueId(UObject* WorldContextObject, const FString& TargetPersistentPlayerId);

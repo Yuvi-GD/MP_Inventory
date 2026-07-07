@@ -12,6 +12,8 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "MP_Inventory.h"
+#include "Core/MP_InventoryPickupInterface.h"
+#include "Engine/World.h"
 
 // =============================================================================
 //  LIFECYCLE
@@ -257,6 +259,65 @@ void UMP_InventoryComponent::LoadInventory(const FString& PlayerID)
 //  QUERIES
 // =============================================================================
 
+bool UMP_InventoryComponent::CanAddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot, int32& OutQuantityForNewSlots, int32& OutQuantityForMerge) const
+{
+    OutQuantityForNewSlots = 0;
+    OutQuantityForMerge = 0;
+
+    if (bInventoryLocked || ItemID.IsNone() || Quantity <= 0) return false;
+
+    UMP_ItemRegistry* Reg = GetRegistry();
+    if (!Reg) return false;
+    
+    const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(ItemID);
+    if (!Def) return false;
+
+    if (bEnforceWeightLimit && (CurrentWeight + (Def->PerItemWeight * Quantity) > MaxWeightCapacity)) return false;
+
+    const int32 StackLimit = Def->MaxStackSize;
+    if (StackLimit <= 0) return false;
+    
+    int32 UsedSlotCount = InventoryItems.Items.Num();
+    int32 AvailableSlots = FMath::Max(0, MaxInventorySlots - UsedSlotCount);
+
+    int64 TotalCapacityInNewSlots = AvailableSlots * StackLimit;
+    if (bPreferNewSlot)
+    {
+        if (TotalCapacityInNewSlots >= Quantity)
+        {
+            OutQuantityForNewSlots = Quantity;
+            return true;
+        }
+    }
+
+    int32 TotalMergeCapacity = 0;
+    for (const FMP_InventoryItem& Item : InventoryItems.Items)
+    {
+        if (Item.ItemID == ItemID && !Item.bIsLocked)
+        {
+            TotalMergeCapacity += FMath::Max(0, StackLimit - Item.Quantity);
+        }
+    }
+
+    int32 Remaining = Quantity;
+
+    if (bPreferNewSlot)
+    {
+        OutQuantityForNewSlots = FMath::Min(Remaining, int32(TotalCapacityInNewSlots));
+        OutQuantityForMerge = Remaining - OutQuantityForNewSlots;
+
+        return OutQuantityForMerge <= TotalMergeCapacity;
+    }
+    else
+    {
+        OutQuantityForMerge = FMath::Min(Remaining, TotalMergeCapacity);
+        OutQuantityForNewSlots = Remaining - OutQuantityForMerge;
+
+        int32 SlotsNeeded = FMath::DivideAndRoundUp(OutQuantityForNewSlots, StackLimit);
+        return SlotsNeeded <= AvailableSlots;
+    }
+}
+
 FMP_InventoryItem UMP_InventoryComponent::GetItemBySlotIndex(int32 SlotIndex) const
 {
     const int32 ArrayIndex = GetArrayIndexFromSlot(SlotIndex);
@@ -322,49 +383,58 @@ bool UMP_InventoryComponent::IsInventoryFull() const
 //  SERVER COMMANDS
 // =============================================================================
 
-void UMP_InventoryComponent::AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot)
+AActor* UMP_InventoryComponent::DropItem(int32 SlotIndex, int32 Quantity, FVector DropLocation)
 {
-    if (!GetOwner()->HasAuthority() || bInventoryLocked || ItemID.IsNone() || Quantity <= 0) return;
+    if (!GetOwner()->HasAuthority() || bInventoryLocked || Quantity <= 0) return nullptr;
+
+    const int32 ArrayIndex = GetArrayIndexFromSlot(SlotIndex);
+    if (ArrayIndex == INDEX_NONE) return nullptr;
+
+    FMP_InventoryItem& Item = InventoryItems.Items[ArrayIndex];
+    if (Item.Quantity < Quantity || Item.bIsLocked) return nullptr;
+
+    FName ItemID = Item.ItemID;
 
     UMP_ItemRegistry* Reg = GetRegistry();
-    if (!Reg) return;
-    const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(ItemID);
-    if (!Def) return;
-    if (bEnforceWeightLimit && (CurrentWeight + (Def->PerItemWeight * Quantity) > MaxWeightCapacity)) return;
+    if (!Reg) return nullptr;
 
-    const int32 StackLimit = Def->MaxStackSize;
-    int32 UsedSlotCount = InventoryItems.Items.Num();
-    int32 TotalMergeCapacity = 0;
+    const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(ItemID);
+    if (!Def || !Def->DropActorClass) return nullptr;
+
+    // Safely deduct item before spawning
+    RemoveItem(SlotIndex, Quantity);
+
+    UWorld* World = GetWorld();
+    if (!World) return nullptr;
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
     
-    for (const FMP_InventoryItem& Item : InventoryItems.Items)
+    AActor* SpawnedActor = World->SpawnActor<AActor>(Def->DropActorClass, DropLocation, FRotator::ZeroRotator, SpawnParams);
+    if (SpawnedActor && SpawnedActor->Implements<UMP_InventoryPickupInterface>())
     {
-        if (Item.ItemID == ItemID && !Item.bIsLocked)
-        {
-            TotalMergeCapacity += FMath::Max(0, StackLimit - Item.Quantity);
-        }
+        IMP_InventoryPickupInterface::Execute_InitializePickup(SpawnedActor, ItemID, Quantity);
     }
 
-    int32 Remaining = Quantity;
+    return SpawnedActor;
+}
+
+void UMP_InventoryComponent::AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot)
+{
+    if (!GetOwner()->HasAuthority()) return;
+
     int32 QuantityForNewSlots = 0;
     int32 QuantityForMerge = 0;
-    int32 AvailableSlots = bUseStrictSlots ? (MaxInventorySlots - UsedSlotCount) : TNumericLimits<int32>::Max();
-    
-    if (bPreferNewSlot)
+
+    if (!CanAddItem(ItemID, Quantity, bPreferNewSlot, QuantityForNewSlots, QuantityForMerge))
     {
-        int32 MaxCapacityInNewSlots = bUseStrictSlots ? (AvailableSlots * StackLimit) : TNumericLimits<int32>::Max();
-        QuantityForNewSlots = FMath::Min(Remaining, MaxCapacityInNewSlots);
-        QuantityForMerge = Remaining - QuantityForNewSlots;
-        
-        if (QuantityForMerge > TotalMergeCapacity) return; 
+        return;
     }
-    else
-    {
-        QuantityForMerge = FMath::Min(Remaining, TotalMergeCapacity);
-        QuantityForNewSlots = Remaining - QuantityForMerge;
-        
-        int32 SlotsNeeded = FMath::DivideAndRoundUp(QuantityForNewSlots, StackLimit);
-        if (bUseStrictSlots && SlotsNeeded > AvailableSlots) return; 
-    }
+
+    UMP_ItemRegistry* Reg = GetRegistry();
+    const UMP_ItemDefinition* Def = Reg->GetItemDefinitionByName(ItemID);
+    const int32 StackLimit = Def->MaxStackSize;
+
     auto DoMerge = [&]()
     {
         for (int32 i = 0; i < InventoryItems.Items.Num() && QuantityForMerge > 0; ++i)
@@ -423,6 +493,7 @@ void UMP_InventoryComponent::AddItem(FName ItemID, int32 Quantity, bool bPreferN
             }
         }
     };
+
     if (bPreferNewSlot)
     {
         DoNewSlots();

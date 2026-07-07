@@ -152,6 +152,43 @@ void UMP_InventoryManager::SplitItem_Implementation(FName TargetComponentID, int
     }
 }
 
+void UMP_InventoryManager::DropItem_Implementation(FName TargetComponentID, int32 SlotIndex, int32 Quantity, FVector DropLocation)
+{
+    if (Quantity <= 0) return;
+
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetComponentID))
+    {
+        if (AActor* CompOwner = Comp->GetOwner())
+        {
+            FVector OwnerLoc = CompOwner->GetActorLocation();
+
+            // If the inventory is on a Controller or PlayerState, we need the physical Pawn's location instead
+            if (APlayerController* PC = Cast<APlayerController>(CompOwner))
+            {
+                if (APawn* Pawn = PC->GetPawn())
+                {
+                    OwnerLoc = Pawn->GetActorLocation();
+                }
+            }
+            else if (APlayerState* PS = Cast<APlayerState>(CompOwner))
+            {
+                if (APawn* Pawn = PS->GetPawn())
+                {
+                    OwnerLoc = Pawn->GetActorLocation();
+                }
+            }
+
+            float MaxDist = 500.0f; // Prevent spawning items extremely far away
+            if (FVector::DistSquared(OwnerLoc, DropLocation) > FMath::Square(MaxDist))
+            {
+                FVector Dir = (DropLocation - OwnerLoc).GetSafeNormal();
+                DropLocation = OwnerLoc + (Dir * MaxDist);
+            }
+        }
+        Comp->DropItem(SlotIndex, Quantity, DropLocation);
+    }
+}
+
 void UMP_InventoryManager::SetItemLock_Implementation(FName TargetComponentID, int32 SlotIndex, bool bLocked)
 {
     if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetComponentID))

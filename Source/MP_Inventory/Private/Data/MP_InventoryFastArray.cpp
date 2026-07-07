@@ -377,8 +377,7 @@ void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIn
 void FMP_InventoryArray::PostReplicatedReceive(
     const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
 {
-    if (UMP_InventoryComponent* InvComp = Cast<UMP_InventoryComponent>(Owner.Get()))
-    {
-        InvComp->FireInventoryUpdate(EInventoryDelta::Refresh, -1);
-    }
+    // Intentionally left blank.
+    // The specific Add/Remove/Change events handle fine-grained UI updates.
+    // Firing a full EInventoryDelta::Refresh here would destroy UI performance.
 }

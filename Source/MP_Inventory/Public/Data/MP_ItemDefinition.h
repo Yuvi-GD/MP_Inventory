@@ -59,6 +59,11 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Rules")
     float PerItemWeight = 0.0f;
 
+    // The physical actor to spawn when this item is dropped in the world.
+    // Can be ANY actor class. If it implements UMP_InventoryPickupInterface, it will receive initialization data.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
+    TSubclassOf<AActor> DropActorClass;
+
     // Override this to tell the Asset Manager how to categorize this item
     virtual FPrimaryAssetId GetPrimaryAssetId() const override
     {

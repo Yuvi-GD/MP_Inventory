@@ -84,6 +84,9 @@ public:
     void SplitItem(FName TargetComponentID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void DropItem(FName TargetComponentID, int32 SlotIndex, int32 Quantity, FVector DropLocation);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void SetItemLock(FName TargetComponentID, int32 SlotIndex, bool bLocked);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
