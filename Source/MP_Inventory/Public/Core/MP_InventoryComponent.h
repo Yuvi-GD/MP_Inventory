@@ -31,9 +31,9 @@ public:
 
     /**
      * Fired on both server and client whenever the inventory changes.
-     * Index is SlotIndex for Removed, ArrayIndex for Added/Updated (-1 on full refresh).
+     * SlotIndex represents the logical grid slot that was Updated, Added, or Removed.
      */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, EInventoryDelta, Delta, int32, Index);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, EInventoryDelta, Delta, int32, SlotIndex);
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryUpdated OnInventoryUpdated;
 
@@ -60,11 +60,11 @@ public:
      * Unique GUID for this inventory component. 
      * Registered in the MP_ItemRegistry.
      */
-    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ComponentID, Category = "MP_Inventory|Config")
-    FName ComponentID;
+    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryID, Category = "MP_Inventory|Config")
+    FName InventoryID;
 
     UFUNCTION()
-    void OnRep_ComponentID();
+    void OnRep_InventoryID();
 
     /** Determines who has rights to this inventory (ManagerID, "GLOBAL", or "PRIVATE") */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "MP_Inventory|Config")
@@ -349,7 +349,7 @@ public:
      * Called by FMP_InventoryArray callbacks to fire OnInventoryUpdated.
      * Do not call this directly from game code.
      */
-    void FireInventoryUpdate(EInventoryDelta Delta, int32 Index);
+    void FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex);
 
 protected:
 

@@ -146,7 +146,7 @@ struct MP_INVENTORY_API FMP_InventoryArray : public FFastArraySerializer
      * Routes a delta notification to the owning UMP_InventoryComponent.
      * Fires OnInventoryUpdated dispatcher on both server and client.
      */
-    void NotifyOwner(EInventoryDelta Delta, int32 Index);
+    void NotifyOwner(EInventoryDelta Delta, int32 SlotIndex);
 
 private:
 

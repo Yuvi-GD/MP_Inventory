@@ -34,17 +34,17 @@ public:
     //  GLOBAL INVENTORY TRACKING
     // =========================================================================
 
-    /** Registers an inventory component so it can be found globally by its ComponentID. */
+    /** Registers an inventory component so it can be found globally by its InventoryID. */
     UFUNCTION(BlueprintCallable, Category = "Inventory|Registry")
-    void RegisterInventory(FName ComponentID, class UMP_InventoryComponent* Inventory);
+    void RegisterInventory(FName InventoryID, class UMP_InventoryComponent* Inventory);
 
     /** Unregisters an inventory component when it is destroyed. */
     UFUNCTION(BlueprintCallable, Category = "Inventory|Registry")
-    void UnregisterInventory(FName ComponentID);
+    void UnregisterInventory(FName InventoryID);
 
-    /** Retrieves an active inventory component anywhere in the world by its ComponentID. */
+    /** Retrieves an active inventory component anywhere in the world by its InventoryID. */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Registry")
-    class UMP_InventoryComponent* GetInventoryByComponentID(FName ComponentID) const;
+    class UMP_InventoryComponent* GetInventoryByInventoryID(FName InventoryID) const;
 
 private:
     UPROPERTY()

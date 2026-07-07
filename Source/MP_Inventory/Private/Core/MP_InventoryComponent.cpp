@@ -33,9 +33,9 @@ void UMP_InventoryComponent::BeginPlay()
 
     if (GetOwner()->HasAuthority())
     {
-        if (ComponentID.IsNone())
+        if (InventoryID.IsNone())
         {
-            ComponentID = FName(*FGuid::NewGuid().ToString());
+            InventoryID = FName(*FGuid::NewGuid().ToString());
         }
 
         if (OwnerID.IsNone())
@@ -45,7 +45,7 @@ void UMP_InventoryComponent::BeginPlay()
 
         if (UMP_ItemRegistry* Registry = GetRegistry())
         {
-            Registry->RegisterInventory(ComponentID, this);
+            Registry->RegisterInventory(InventoryID, this);
         }
     }
 }
@@ -54,16 +54,16 @@ void UMP_InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     if (UMP_ItemRegistry* Registry = GetRegistry())
     {
-        Registry->UnregisterInventory(ComponentID);
+        Registry->UnregisterInventory(InventoryID);
     }
     Super::EndPlay(EndPlayReason);
 }
 
-void UMP_InventoryComponent::OnRep_ComponentID()
+void UMP_InventoryComponent::OnRep_InventoryID()
 {
     if (UMP_ItemRegistry* Registry = GetRegistry())
     {
-        Registry->RegisterInventory(ComponentID, this);
+        Registry->RegisterInventory(InventoryID, this);
     }
 }
 
@@ -71,7 +71,7 @@ void UMP_InventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(UMP_InventoryComponent, InventoryItems);
-    DOREPLIFETIME(UMP_InventoryComponent, ComponentID);
+    DOREPLIFETIME(UMP_InventoryComponent, InventoryID);
     DOREPLIFETIME(UMP_InventoryComponent, OwnerID);
     DOREPLIFETIME(UMP_InventoryComponent, CurrentWeight);
     DOREPLIFETIME(UMP_InventoryComponent, MaxInventorySlots);
@@ -163,9 +163,9 @@ int32 UMP_InventoryComponent::GetArrayIndexFromSlot(int32 SlotIndex) const
     return INDEX_NONE;
 }
 
-void UMP_InventoryComponent::FireInventoryUpdate(EInventoryDelta Delta, int32 ArrayIndex)
+void UMP_InventoryComponent::FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex)
 {
-    OnInventoryUpdated.Broadcast(Delta, ArrayIndex);
+    OnInventoryUpdated.Broadcast(Delta, SlotIndex);
 }
 
 void UMP_InventoryComponent::CompactSlots()

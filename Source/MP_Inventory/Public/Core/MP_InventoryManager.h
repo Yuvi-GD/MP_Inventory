@@ -41,7 +41,7 @@ public:
      * Works on both Client and Server. Fires failure delegates if validation fails.
      */
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager")
-    UMP_InventoryComponent* GetAndValidateComponent(FName ComponentID);
+    UMP_InventoryComponent* GetAndValidateComponent(FName InventoryID);
 
     /** Fired on the client when a server action fails (e.g., validation failed). */
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Manager|Events")
@@ -57,39 +57,39 @@ public:
     // =========================================================================
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void AddItem(FName TargetComponentID, FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
+    void AddItem(FName TargetInventoryID, FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void AddItemAtSlot(FName TargetComponentID, FName ItemID, int32 Quantity, int32 TargetSlotIndex);
+    void AddItemAtSlot(FName TargetInventoryID, FName ItemID, int32 Quantity, int32 TargetSlotIndex);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void AddItems(FName TargetComponentID, const TArray<FMP_InventoryAddItems>& Items);
+    void AddItems(FName TargetInventoryID, const TArray<FMP_InventoryAddItems>& Items);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void RemoveItem(FName TargetComponentID, int32 SlotIndex, int32 Quantity = 1);
+    void RemoveItem(FName TargetInventoryID, int32 SlotIndex, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void RemoveItemByID(FName TargetComponentID, FName ItemID, int32 Quantity = 1);
+    void RemoveItemByID(FName TargetInventoryID, FName ItemID, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void UpdateItem(FName TargetComponentID, FMP_InventoryItem NewItem);
+    void UpdateItem(FName TargetInventoryID, FMP_InventoryItem NewItem);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void AdjustItemQuantity(FName TargetComponentID, int32 SlotIndex, int32 QuantityDelta);
+    void AdjustItemQuantity(FName TargetInventoryID, int32 SlotIndex, int32 QuantityDelta);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void SwapItems(FName TargetComponentID, int32 SlotIndexA, int32 SlotIndexB);
+    void SwapItems(FName TargetInventoryID, int32 SlotIndexA, int32 SlotIndexB);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void SplitItem(FName TargetComponentID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
+    void SplitItem(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void DropItem(FName TargetComponentID, int32 SlotIndex, int32 Quantity, FVector DropLocation);
+    void DropItem(FName TargetInventoryID, int32 SlotIndex, int32 Quantity, FVector DropLocation);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void SetItemLock(FName TargetComponentID, int32 SlotIndex, bool bLocked);
+    void SetItemLock(FName TargetInventoryID, int32 SlotIndex, bool bLocked);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void CompactSlots(FName TargetComponentID);
+    void CompactSlots(FName TargetInventoryID);
 
 };

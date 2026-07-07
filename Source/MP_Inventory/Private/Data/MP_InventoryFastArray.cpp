@@ -23,12 +23,12 @@ void FMP_InventoryArray::ResizeTracker(int32 NewSize)
 //  OWNER NOTIFICATION
 // =============================================================================
 
-void FMP_InventoryArray::NotifyOwner(EInventoryDelta Delta, int32 ArrayIndex)
+void FMP_InventoryArray::NotifyOwner(EInventoryDelta Delta, int32 SlotIndex)
 {
     if (!Owner.IsValid()) return;
     if (UMP_InventoryComponent* InvComp = Cast<UMP_InventoryComponent>(Owner.Get()))
     {
-        InvComp->FireInventoryUpdate(Delta, ArrayIndex);
+        InvComp->FireInventoryUpdate(Delta, SlotIndex);
     }
 }
 
@@ -51,7 +51,7 @@ void FMP_InventoryArray::AddItem(const FMP_InventoryItem& NewItem)
 
     MarkItemDirty(Items.Last());
     MarkArrayDirty();
-    NotifyOwner(EInventoryDelta::Added, Index);
+    NotifyOwner(EInventoryDelta::Added, NewSlot);
 }
 
 void FMP_InventoryArray::AddQuantity(int32 ArrayIndex, int32 Quantity)
@@ -62,7 +62,7 @@ void FMP_InventoryArray::AddQuantity(int32 ArrayIndex, int32 Quantity)
     Item.Quantity += Quantity;
     MarkItemDirty(Item);
     MarkArrayDirty();
-    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+    NotifyOwner(EInventoryDelta::Updated, Item.SlotIndex);
 }
 
 void FMP_InventoryArray::RemoveAtSwap(int32 ArrayIndex, int32 Quantity)
@@ -78,7 +78,7 @@ void FMP_InventoryArray::RemoveAtSwap(int32 ArrayIndex, int32 Quantity)
     if (Item.Quantity > 0)
     {
         MarkItemDirty(Item);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+        NotifyOwner(EInventoryDelta::Updated, Item.SlotIndex);
         MarkArrayDirty();
         return;
     }
@@ -109,7 +109,7 @@ void FMP_InventoryArray::RemoveAtSwap(int32 ArrayIndex, int32 Quantity)
         }
 
         MarkItemDirty(Items[ArrayIndex]);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+        NotifyOwner(EInventoryDelta::Updated, Items[ArrayIndex].SlotIndex);
     }
 
     MarkArrayDirty();
@@ -128,7 +128,7 @@ void FMP_InventoryArray::RemoveAndShift(int32 ArrayIndex, int32 Quantity)
     if (Item.Quantity > 0)
     {
         MarkItemDirty(Item);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+        NotifyOwner(EInventoryDelta::Updated, Item.SlotIndex);
         MarkArrayDirty();
         return;
     }
@@ -161,7 +161,7 @@ void FMP_InventoryArray::RemoveAndShift(int32 ArrayIndex, int32 Quantity)
         IndexTracker[NewSlot] = i;
 
         MarkItemDirty(Items[i]);
-        NotifyOwner(EInventoryDelta::Updated, i);
+        NotifyOwner(EInventoryDelta::Updated, NewSlot);
     }
 
     MarkArrayDirty();
@@ -179,7 +179,7 @@ void FMP_InventoryArray::UpdateItem(int32 ArrayIndex, const FMP_InventoryItem& N
 
     MarkItemDirty(Items[ArrayIndex]);
     MarkArrayDirty();
-    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+    NotifyOwner(EInventoryDelta::Updated, Items[ArrayIndex].SlotIndex);
 }
 
 void FMP_InventoryArray::SetItemSlot(int32 ArrayIndex, int32 NewSlotIndex)
@@ -203,7 +203,7 @@ void FMP_InventoryArray::SetItemSlot(int32 ArrayIndex, int32 NewSlotIndex)
     IndexTracker[NewSlotIndex] = ArrayIndex;
 
     MarkItemDirty(Items[ArrayIndex]);
-    NotifyOwner(EInventoryDelta::Updated, ArrayIndex);
+    NotifyOwner(EInventoryDelta::Updated, NewSlotIndex);
 }
 
 void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
@@ -231,8 +231,8 @@ void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
         IndexTracker[SlotB] = ArrayIndexA;
         MarkItemDirty(Items[ArrayIndexA]);
         MarkItemDirty(Items[ArrayIndexB]);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndexA);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndexB);
+        NotifyOwner(EInventoryDelta::Updated, SlotA);
+        NotifyOwner(EInventoryDelta::Updated, SlotB);
     }
     else if (bAOccupied && !bBOccupied)
     {
@@ -241,7 +241,7 @@ void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
         IndexTracker[SlotA] = INDEX_NONE;
         MarkItemDirty(Items[ArrayIndexA]);
         NotifyOwner(EInventoryDelta::Removed, SlotA);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndexA);
+        NotifyOwner(EInventoryDelta::Updated, SlotB);
     }
     else if (!bAOccupied && bBOccupied)
     {
@@ -250,7 +250,7 @@ void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
         IndexTracker[SlotB] = INDEX_NONE;
         MarkItemDirty(Items[ArrayIndexB]);
         NotifyOwner(EInventoryDelta::Removed, SlotB);
-        NotifyOwner(EInventoryDelta::Updated, ArrayIndexB);
+        NotifyOwner(EInventoryDelta::Updated, SlotA);
     }
 
     MarkArrayDirty();
@@ -272,8 +272,9 @@ void FMP_InventoryArray::SwapItemsByArrayIndex(int32 ArrayIndexA, int32 ArrayInd
     MarkItemDirty(Items[ArrayIndexB]);
     MarkArrayDirty();
 
-    NotifyOwner(EInventoryDelta::Updated, ArrayIndexA);
-    NotifyOwner(EInventoryDelta::Updated, ArrayIndexB);
+    // May or May not not be needed to trigger UI
+    NotifyOwner(EInventoryDelta::Updated, SlotA);
+    NotifyOwner(EInventoryDelta::Updated, SlotB);
 }
 
 
@@ -322,7 +323,7 @@ void FMP_InventoryArray::PostReplicatedAdd(const TArrayView<int32>& AddedIndices
             }
             IndexTracker[NewSlot] = Index;
 
-            NotifyOwner(EInventoryDelta::Added, Index);
+            NotifyOwner(EInventoryDelta::Added, NewSlot);
         }
     }
 }
@@ -339,7 +340,7 @@ void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIn
             // This means only its data (like Quantity or ItemID) changed. Skip the old-slot search.
             if (IndexTracker.IsValidIndex(NewSlot) && IndexTracker[NewSlot] == Index)
             {
-                NotifyOwner(EInventoryDelta::Updated, Index);
+                NotifyOwner(EInventoryDelta::Updated, NewSlot);
                 continue;
             }
 
@@ -369,7 +370,7 @@ void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIn
             }
             IndexTracker[NewSlot] = Index;
 
-            NotifyOwner(EInventoryDelta::Updated, Index);
+            NotifyOwner(EInventoryDelta::Updated, NewSlot);
         }
     }
 }

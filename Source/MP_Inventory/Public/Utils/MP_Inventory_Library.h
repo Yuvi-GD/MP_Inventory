@@ -23,9 +23,9 @@ public:
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|FLibrary")
 	static UMP_InventoryComponent* GetInventoryByActor(AActor* Actor);
 
-	/** Looks up an inventory globally by its exact ComponentID via the Item Registry. */
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
-	static UMP_InventoryComponent* GetInventoryByID(UObject* WorldContextObject, FName ComponentID);
+	/** Looks up an inventory globally by its exact InventoryID via the Item Registry. */
+	UFUNCTION(BlueprintPure, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))
+	static UMP_InventoryComponent* GetInventoryByID(UObject* WorldContextObject, FName InventoryID);
 
 	/** Finds the local player's Inventory Manager (from their PlayerController). */
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MP_Inventory|FLibrary", meta = (WorldContext = "WorldContextObject", HidePin = "WorldContextObject"))

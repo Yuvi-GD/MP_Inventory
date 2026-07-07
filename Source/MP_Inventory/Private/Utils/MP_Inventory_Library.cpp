@@ -31,7 +31,7 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByActor(AActor* Actor
     return MP_Inventory; // This will be nullptr if nothing was found
 }
 
-UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByID(UObject* WorldContextObject, FName ComponentID)
+UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByID(UObject* WorldContextObject, FName InventoryID)
 {
     if (!WorldContextObject) {
         UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - WorldContextObject is invalid."));
@@ -46,10 +46,10 @@ UMP_InventoryComponent* UMP_Inventory_Library::GetInventoryByID(UObject* WorldCo
 
 	if (UMP_ItemRegistry* Registry = World->GetGameInstance()->GetSubsystem<UMP_ItemRegistry>())
 	{
-		return Registry->GetInventoryByComponentID(ComponentID);
+		return Registry->GetInventoryByInventoryID(InventoryID);
 	}
 
-	UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - InventoryComponent not found with ID %s."), *ComponentID.ToString());
+	UE_LOG(LogMPInventory, Warning, TEXT("GetMPInventoryByID - InventoryComponent not found with ID %s."), *InventoryID.ToString());
     return nullptr;
 }
 
