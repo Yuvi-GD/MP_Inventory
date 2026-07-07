@@ -90,6 +90,9 @@ public:
     void SetItemLock(FName TargetInventoryID, int32 SlotIndex, bool bLocked);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void ResizeInventory(FName TargetInventoryID, int32 NewMaxSlots);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void CompactSlots(FName TargetInventoryID);
 
 };

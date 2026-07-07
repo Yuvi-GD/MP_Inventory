@@ -197,6 +197,14 @@ void UMP_InventoryManager::SetItemLock_Implementation(FName TargetInventoryID, i
     }
 }
 
+void UMP_InventoryManager::ResizeInventory_Implementation(FName TargetInventoryID, int32 NewMaxSlots)
+{
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
+    {
+        Comp->ResizeInventory(NewMaxSlots);
+    }
+}
+
 void UMP_InventoryManager::CompactSlots_Implementation(FName TargetInventoryID)
 {
     if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))

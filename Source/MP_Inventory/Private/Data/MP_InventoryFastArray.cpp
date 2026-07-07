@@ -9,8 +9,10 @@
 //  TRACKER MANAGEMENT
 // =============================================================================
 
-void FMP_InventoryArray::ResizeTracker(int32 NewSize)
+void FMP_InventoryArray::ExpandTracker(int32 NewSize)
 {
+    if (NewSize <= IndexTracker.Num()) return;
+
     int32 OldNum = IndexTracker.Num();
     IndexTracker.SetNum(NewSize);
     for (int32 i = OldNum; i < NewSize; ++i)
@@ -45,7 +47,7 @@ void FMP_InventoryArray::AddItem(const FMP_InventoryItem& NewItem)
     int32 NewSlot = NewItem.SlotIndex;
     if (NewSlot >= IndexTracker.Num())
     {
-        ResizeTracker(NewSlot + 1);
+        ExpandTracker(NewSlot + 1);
     }
     IndexTracker[NewSlot] = Index;
 
@@ -156,7 +158,7 @@ void FMP_InventoryArray::RemoveAndShift(int32 ArrayIndex, int32 Quantity)
         
         if (NewSlot >= IndexTracker.Num())
         {
-            ResizeTracker(NewSlot + 1);
+            ExpandTracker(NewSlot + 1);
         }
         IndexTracker[NewSlot] = i;
 
@@ -198,7 +200,7 @@ void FMP_InventoryArray::SetItemSlot(int32 ArrayIndex, int32 NewSlotIndex)
     
     if (NewSlotIndex >= IndexTracker.Num())
     {
-        ResizeTracker(NewSlotIndex + 1);
+        ExpandTracker(NewSlotIndex + 1);
     }
     IndexTracker[NewSlotIndex] = ArrayIndex;
 
@@ -221,7 +223,7 @@ void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
     int32 MaxSlot = FMath::Max(SlotA, SlotB);
     if (MaxSlot >= IndexTracker.Num())
     {
-        ResizeTracker(MaxSlot + 1);
+        ExpandTracker(MaxSlot + 1);
     }
 
     if (bAOccupied && bBOccupied)
@@ -319,7 +321,7 @@ void FMP_InventoryArray::PostReplicatedAdd(const TArrayView<int32>& AddedIndices
             // Update tracker safely
             if (NewSlot >= IndexTracker.Num())
             {
-                ResizeTracker(NewSlot + 1);
+                ExpandTracker(NewSlot + 1);
             }
             IndexTracker[NewSlot] = Index;
 
@@ -366,7 +368,7 @@ void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIn
             // 3. Update the tracker with the new slot
             if (NewSlot >= IndexTracker.Num())
             {
-                ResizeTracker(NewSlot + 1);
+                ExpandTracker(NewSlot + 1);
             }
             IndexTracker[NewSlot] = Index;
 

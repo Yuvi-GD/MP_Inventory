@@ -38,11 +38,10 @@ struct MP_INVENTORY_API FMP_InventoryArray : public FFastArraySerializer
     TArray<int32> IndexTracker;
 
     /**
-     * Expands or shrinks the tracker array to the target size.
+     * Safely expands the tracker array to the target size.
      * Newly added indices will be initialized to INDEX_NONE.
      */
-    void ResizeTracker(int32 NewSize);
-
+    void ExpandTracker(int32 NewSize);
 
     // =========================================================================
     //  WRITE OPERATIONS

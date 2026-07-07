@@ -37,10 +37,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryUpdated OnInventoryUpdated;
 
-    /** Fired when a trade requires payment processing. */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProcessPayment, FString, TradeId, float, AmountToPay);
+    /** Fired when the inventory max size changes. */
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryResized, int32, NewSize);
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
-    FOnProcessPayment OnProcessPayment;
+    FOnInventoryResized OnInventoryResized;
 
 
     // =========================================================================
@@ -143,18 +143,18 @@ public:
     AActor* DropItem(int32 SlotIndex, int32 Quantity, FVector DropLocation);
 
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
+    bool AddItem(FName ItemID, int32 Quantity, bool bPreferNewSlot = false);
 
     /**
      * Adds an item to a specific slot index.
      * Useful for drag-and-drop UI or exact placement. Fails if the slot is occupied by a different item.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void AddItemAtSlot(FName ItemID, int32 Quantity, int32 TargetSlotIndex);
+    bool AddItemAtSlot(FName ItemID, int32 Quantity, int32 TargetSlotIndex);
 
     /** Adds multiple items in a single call to optimize performance. */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void AddItems(const TArray<FMP_InventoryAddItems> &Items);
+    bool AddItems(const TArray<FMP_InventoryAddItems> &Items);
 
     /**
      * Removes Quantity from the item at SlotIndex.
@@ -162,7 +162,7 @@ public:
      * Fails silently if the slot is locked or does not contain enough quantity.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void RemoveItem(int32 SlotIndex, int32 Quantity = 1);
+    bool RemoveItem(int32 SlotIndex, int32 Quantity = 1);
 
     /**
      * Removes a specific Quantity of ItemID starting from the first found stack.
@@ -170,7 +170,7 @@ public:
      * Fails if total quantity across all stacks is insufficient.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void RemoveItemByID(FName ItemID, int32 Quantity = 1);
+    bool RemoveItemByID(FName ItemID, int32 Quantity = 1);
 
     /**
      * Fully replaces the item at its designated SlotIndex (NewItem.SlotIndex).
@@ -178,7 +178,7 @@ public:
      * Fails if the target slot is locked.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void UpdateItem(FMP_InventoryItem NewItem);
+    bool UpdateItem(FMP_InventoryItem NewItem);
 
     /**
      * Adjusts the quantity of the item at SlotIndex.
@@ -186,7 +186,7 @@ public:
      * Negative QuantityDelta removes from the stack (frees the slot if it hits 0).
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void AdjustItemQuantity(int32 SlotIndex, int32 QuantityDelta);
+    bool AdjustItemQuantity(int32 SlotIndex, int32 QuantityDelta);
 
     /**
      * Swaps the contents of two slots.
@@ -194,14 +194,14 @@ public:
      * Fails if either slot contains a locked item.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void SwapItems(int32 SlotIndexA, int32 SlotIndexB);
+    bool SwapItems(int32 SlotIndexA, int32 SlotIndexB);
 
     /**
      * Splits a quantity from a source stack and places it into a target slot.
      * If TargetSlotIndex is -1, it auto-assigns the next free slot.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void SplitItem(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
+    bool SplitItem(int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     /**
      * Locks or unlocks the item at SlotIndex.
@@ -210,7 +210,14 @@ public:
      * with the FastArray delta. Reads are always allowed on locked slots.
      */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
-    void SetItemLock(int32 SlotIndex, bool bLocked);
+    bool SetItemLock(int32 SlotIndex, bool bLocked);
+
+    /** 
+     * Resizes the inventory grid safely.
+     * Returns true if successful, false if not enough physical space to shrink.
+     */
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Commands")
+    bool ResizeInventory(int32 NewMaxSlots);
 
     /**
      * Reassigns all SlotIndexes to be contiguous starting from 0.
@@ -340,17 +347,6 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
     void LoadInventory(const FString& PlayerID);
 
-
-    // =========================================================================
-    //  INTERNAL BRIDGE  -  Not for Blueprint use
-    // =========================================================================
-
-    /**
-     * Called by FMP_InventoryArray callbacks to fire OnInventoryUpdated.
-     * Do not call this directly from game code.
-     */
-    void FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex);
-
 protected:
 
     // =========================================================================
@@ -377,4 +373,15 @@ private:
      * Returns nullptr and logs a warning if the subsystem is unavailable.
      */
     UMP_ItemRegistry* GetRegistry() const;
+    
+    /**
+     * Compacts slots and explicitly truncates the FastArray tracker to the new size.
+     */
+    void ShrinkTracker(int32 NewSize);
+
+    /**
+     * Called by FMP_InventoryArray callbacks to fire OnInventoryUpdated.
+     * Do not call this directly from game code.
+     */
+    void FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex);
 };
