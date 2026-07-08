@@ -109,8 +109,6 @@ void FMP_InventoryArray::RemoveAtSwap(int32 ArrayIndex, int32 Quantity)
         {
             IndexTracker[MovedSlot] = ArrayIndex;
         }
-
-        MarkItemDirty(Items[ArrayIndex]);
         NotifyOwner(EInventoryDelta::Updated, Items[ArrayIndex].SlotIndex);
     }
 
@@ -258,28 +256,6 @@ void FMP_InventoryArray::SwapItemsBySlotIndex(int32 SlotA, int32 SlotB)
     MarkArrayDirty();
 }
 
-void FMP_InventoryArray::SwapItemsByArrayIndex(int32 ArrayIndexA, int32 ArrayIndexB)
-{
-    if (!Items.IsValidIndex(ArrayIndexA) || !Items.IsValidIndex(ArrayIndexB) || ArrayIndexA == ArrayIndexB) return;
-
-    int32 SlotA = Items[ArrayIndexA].SlotIndex;
-    int32 SlotB = Items[ArrayIndexB].SlotIndex;
-
-    Items.Swap(ArrayIndexA, ArrayIndexB);
-
-    if (IndexTracker.IsValidIndex(SlotA)) IndexTracker[SlotA] = ArrayIndexB;
-    if (IndexTracker.IsValidIndex(SlotB)) IndexTracker[SlotB] = ArrayIndexA;
-
-    MarkItemDirty(Items[ArrayIndexA]);
-    MarkItemDirty(Items[ArrayIndexB]);
-    MarkArrayDirty();
-
-    // May or May not not be needed to trigger UI
-    NotifyOwner(EInventoryDelta::Updated, SlotA);
-    NotifyOwner(EInventoryDelta::Updated, SlotB);
-}
-
-
 // =============================================================================
 //  REPLICATION CALLBACKS
 // =============================================================================
@@ -383,4 +359,16 @@ void FMP_InventoryArray::PostReplicatedReceive(
     // Intentionally left blank.
     // The specific Add/Remove/Change events handle fine-grained UI updates.
     // Firing a full EInventoryDelta::Refresh here would destroy UI performance.
+
+    // Rebuild Tracker
+    IndexTracker.Init(INDEX_NONE, IndexTracker.Num());
+
+    for (int32 ArrayIndex = 0; ArrayIndex < Items.Num(); ++ArrayIndex)
+    {
+        int32 SlotIndex = Items[ArrayIndex].SlotIndex;
+        if (SlotIndex >= 0 && SlotIndex < IndexTracker.Num())
+        {
+            IndexTracker[SlotIndex] = ArrayIndex;
+        }
+    }
 }

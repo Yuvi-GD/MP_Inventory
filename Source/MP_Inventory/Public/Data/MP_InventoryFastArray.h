@@ -101,14 +101,6 @@ struct MP_INVENTORY_API FMP_InventoryArray : public FFastArraySerializer
      */
     void SwapItemsBySlotIndex(int32 SlotA, int32 SlotB);
 
-    /**
-     * Physical Swap (Array Index to Array Index).
-     * Physically swaps the elements in the TArray and updates the Tracker.
-     * Rarely used by standard UI logic, but critical for internal array operations.
-     */
-    void SwapItemsByArrayIndex(int32 ArrayIndexA, int32 ArrayIndexB);
-
-
     // =========================================================================
     //  REPLICATION CALLBACKS
     //  Called by the engine on the receiving end (clients) after delta application.

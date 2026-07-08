@@ -137,7 +137,8 @@ void UMP_InventoryComponent::GrantAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Add(Manager->ManagerID);
-        Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
+        //Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
+        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
     }
 }
 
@@ -146,7 +147,8 @@ void UMP_InventoryComponent::RevokeAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Remove(Manager->ManagerID);
-        Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
+        //Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
+        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
     }
 }
 
@@ -245,6 +247,13 @@ bool UMP_InventoryComponent::ResizeInventory(int32 NewMaxSlots)
     MaxInventorySlots = NewMaxSlots;
     OnInventoryResized.Broadcast(MaxInventorySlots);
     return true;
+}
+
+void UMP_InventoryComponent::OnRep_MaxInventorySlots()
+{
+    // The value has already been updated by the engine replication system.
+    // We just need to notify the UI on the client so it can expand/shrink its grid.
+    OnInventoryResized.Broadcast(MaxInventorySlots);
 }
 
 void UMP_InventoryComponent::ShrinkTracker(int32 NewSize)

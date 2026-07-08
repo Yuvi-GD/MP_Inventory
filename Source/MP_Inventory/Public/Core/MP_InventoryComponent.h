@@ -108,9 +108,12 @@ public:
     bool bUseStrictSlots = true;
 
     /** Only meaningful when bUseStrictSlots is true. Must be >= 1. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "MP_Inventory|Config",
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_MaxInventorySlots, Category = "MP_Inventory|Config",
         meta = (EditCondition = "bUseStrictSlots", ClampMin = "1"))
     int32 MaxInventorySlots = 20;
+
+    UFUNCTION()
+    void OnRep_MaxInventorySlots();
 
     /** When true, AddItem checks cumulative item weight against MaxWeightCapacity. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
