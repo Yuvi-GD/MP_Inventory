@@ -35,7 +35,8 @@ void UMP_InventoryComponent::BeginPlay()
     {
         if (InventoryID.IsNone())
         {
-            InventoryID = FName(*FGuid::NewGuid().ToString());
+            UE_LOG(LogTemp, Warning, TEXT("InventoryID is None on %s! Please manually assign an InventoryID in Blueprint for persistence."), *GetOwner()->GetName());
+            InventoryID = FName(*FString::Printf(TEXT("%s_%s"), *GetOwner()->GetName(), *ComponentName.ToString()));
         }
 
         if (OwnerID.IsNone())
@@ -43,9 +44,19 @@ void UMP_InventoryComponent::BeginPlay()
             TryAutoAssignOwner();
         }
 
+        if (!OwnerID.IsNone() && !InventoryID.ToString().StartsWith(OwnerID.ToString()))
+        {
+            InventoryID = FName(*FString::Printf(TEXT("%s_%s"), *OwnerID.ToString(), *InventoryID.ToString()));
+        }
+
         if (UMP_ItemRegistry* Registry = GetRegistry())
         {
             Registry->RegisterInventory(InventoryID, this);
+        }
+
+        if (bAutoSaveLoad)
+        {
+            LoadInventory();
         }
     }
 }
@@ -56,6 +67,12 @@ void UMP_InventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
     {
         Registry->UnregisterInventory(InventoryID);
     }
+
+    if (bAutoSaveLoad && GetOwner()->HasAuthority() && !OwnerID.IsNone())
+    {
+        SaveInventory();
+    }
+
     Super::EndPlay(EndPlayReason);
 }
 
@@ -82,7 +99,36 @@ void UMP_InventoryComponent::SetInventoryOwner(FName NewOwnerID)
 {
     if (GetOwner()->HasAuthority())
     {
+        if (UMP_ItemRegistry* Registry = GetRegistry())
+        {
+            Registry->UnregisterInventory(InventoryID);
+        }
+
+        FString CurrentInvString = InventoryID.ToString();
+        FString OldOwnerPrefix = OwnerID.ToString() + TEXT("_");
+        
+        // Strip the old OwnerID to retrieve the base InventoryID
+        if (!OwnerID.IsNone() && CurrentInvString.StartsWith(OldOwnerPrefix))
+        {
+            CurrentInvString.RightChopInline(OldOwnerPrefix.Len());
+        }
+
         OwnerID = NewOwnerID;
+
+        // Apply the new OwnerID prefix
+        if (!OwnerID.IsNone())
+        {
+            InventoryID = FName(*FString::Printf(TEXT("%s_%s"), *OwnerID.ToString(), *CurrentInvString));
+        }
+        else
+        {
+            InventoryID = FName(*CurrentInvString);
+        }
+
+        if (UMP_ItemRegistry* Registry = GetRegistry())
+        {
+            Registry->RegisterInventory(InventoryID, this);
+        }
     }
 }
 
@@ -128,7 +174,7 @@ bool UMP_InventoryComponent::TryAutoAssignOwner()
         {
             if (UMP_InventoryManager* Manager = Cast<UMP_InventoryManager>(Comp))
             {
-                OwnerID = Manager->ManagerID;
+                OwnerID = Manager->GetManagerID();
                 return true;
             }
         }
@@ -242,44 +288,97 @@ void UMP_InventoryComponent::CompactSlots()
 //  PERSISTENCE
 // =============================================================================
 
-void UMP_InventoryComponent::SaveInventory(const FString& PlayerID)
+bool UMP_InventoryComponent::SaveInventory()
 {
-    UMP_InventorySave* SaveGame = Cast<UMP_InventorySave>(
-        UGameplayStatics::CreateSaveGameObject(UMP_InventorySave::StaticClass()));
+    if (!GetOwner()->HasAuthority()) return false;
+    
+    if (OwnerID.IsNone()) return false;
+
+    FString DerivedSaveSlot = FString::Printf(TEXT("Inventory_%s"), *OwnerID.ToString());
+
+    UMP_InventorySave* SaveGame = nullptr;
+    
+    if (UGameplayStatics::DoesSaveGameExist(DerivedSaveSlot, 0))
+    {
+        SaveGame = Cast<UMP_InventorySave>(UGameplayStatics::LoadGameFromSlot(DerivedSaveSlot, 0));
+    }
+    
+    if (!SaveGame)
+    {
+        SaveGame = Cast<UMP_InventorySave>(UGameplayStatics::CreateSaveGameObject(UMP_InventorySave::StaticClass()));
+    }
 
     if (!SaveGame)
     {
         UE_LOG(LogMPInventory, Warning, TEXT("UMP_InventoryComponent::SaveInventory - Failed to create save object."));
-        return;
+        return false;
     }
 
-    SaveGame->SavedInventory.Add(FName(*PlayerID), InventoryItems);
-    UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0);
+    FMP_InventorySaveData SaveData;
+    SaveData.InventoryData = InventoryItems.Items;
+    SaveData.ComponentName = ComponentName;
+    SaveData.bUseStrictSlots = bUseStrictSlots;
+    SaveData.MaxInventorySlots = MaxInventorySlots;
+    SaveData.bEnforceWeightLimit = bEnforceWeightLimit;
+    SaveData.MaxWeightCapacity = MaxWeightCapacity;
+
+    SaveGame->SavedInventory.Add(InventoryID, SaveData);
+    return UGameplayStatics::SaveGameToSlot(SaveGame, DerivedSaveSlot, 0);
 }
 
-void UMP_InventoryComponent::LoadInventory(const FString& PlayerID)
+bool UMP_InventoryComponent::LoadInventory()
 {
-    if (!GetOwner()->HasAuthority()) return;
+    if (!GetOwner()->HasAuthority()) return false;
+    
+    if (OwnerID.IsNone()) return false;
 
-    if (!UGameplayStatics::DoesSaveGameExist(SaveSlotName, 0))
+    FString DerivedSaveSlot = FString::Printf(TEXT("Inventory_%s"), *OwnerID.ToString());
+
+    if (!UGameplayStatics::DoesSaveGameExist(DerivedSaveSlot, 0))
     {
-        InventoryItems.Items.Empty();
-        return;
+        return false;
     }
 
-    UMP_InventorySave* SaveGame = Cast<UMP_InventorySave>(
-        UGameplayStatics::LoadGameFromSlot(SaveSlotName, 0));
+    UMP_InventorySave* SaveGame = Cast<UMP_InventorySave>(UGameplayStatics::LoadGameFromSlot(DerivedSaveSlot, 0));
 
-    if (!SaveGame) return;
+    if (!SaveGame) return false;
 
-    const FName PlayerKey(*PlayerID);
-    InventoryItems = SaveGame->SavedInventory.Contains(PlayerKey)
-        ? SaveGame->SavedInventory[PlayerKey]
-        : FMP_InventoryArray();
+    if (!SaveGame->SavedInventory.Contains(InventoryID))
+    {
+        return false;
+    }
 
+    FMP_InventorySaveData SaveData = SaveGame->SavedInventory[InventoryID];
+
+    // Restore Configuration
+    ComponentName = SaveData.ComponentName;
+    bUseStrictSlots = SaveData.bUseStrictSlots;
+    MaxInventorySlots = SaveData.MaxInventorySlots;
+    bEnforceWeightLimit = SaveData.bEnforceWeightLimit;
+    MaxWeightCapacity = SaveData.MaxWeightCapacity;
+
+    // Restore Items
+    InventoryItems.Items = SaveData.InventoryData;
     InventoryItems.SetOwner(this);
     InventoryItems.MarkArrayDirty();
 
+    // Rebuild IndexTracker if strict slots are used
+    if (bUseStrictSlots)
+    {
+        InventoryItems.IndexTracker.Empty();
+        InventoryItems.IndexTracker.Init(INDEX_NONE, MaxInventorySlots);
+
+        for (int32 ArrayIndex = 0; ArrayIndex < InventoryItems.Items.Num(); ++ArrayIndex)
+        {
+            int32 SlotIndex = InventoryItems.Items[ArrayIndex].SlotIndex;
+            if (SlotIndex >= 0 && SlotIndex < MaxInventorySlots)
+            {
+                InventoryItems.IndexTracker[SlotIndex] = ArrayIndex;
+            }
+        }
+    }
+
+    // Rebuild Weight
     CurrentWeight = 0.0f;
     if (bEnforceWeightLimit)
     {
@@ -293,8 +392,18 @@ void UMP_InventoryComponent::LoadInventory(const FString& PlayerID)
         }
     }
 
-    FireInventoryUpdate(EInventoryDelta::Refresh, -1);
+    // Notify Listeners (Replaces Refresh)
+    OnInventoryLoaded.Broadcast();
+    Client_OnInventoryLoaded();
+    
+    return true;
 }
+
+void UMP_InventoryComponent::Client_OnInventoryLoaded_Implementation()
+{
+    OnInventoryLoaded.Broadcast();
+}
+
 
 
 // =============================================================================

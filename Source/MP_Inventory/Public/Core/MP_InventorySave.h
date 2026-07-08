@@ -20,7 +20,7 @@ class MP_INVENTORY_API UMP_InventorySave : public USaveGame
 	
 public:
 
-	// Map of player IDs to their inventory arrays
+    // Map of InventoryIDs to their full inventory save data (items + configuration)
     UPROPERTY(VisibleAnywhere, Category = "MP_Inventory|Save")
-    TMap<FName, FMP_InventoryArray> SavedInventory;
+    TMap<FName, FMP_InventorySaveData> SavedInventory;
 };

@@ -114,8 +114,24 @@ USTRUCT(BlueprintType)
 struct FMP_InventorySaveData
 {
     GENERATED_BODY()
-    UPROPERTY()
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
     TArray<FMP_InventoryItem> InventoryData;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+    FName ComponentName;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+    bool bUseStrictSlots = true;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+    int32 MaxInventorySlots = 20;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+    bool bEnforceWeightLimit = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+    float MaxWeightCapacity = 100.0f;
 };
 
 /**

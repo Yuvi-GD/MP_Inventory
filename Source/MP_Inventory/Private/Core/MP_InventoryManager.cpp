@@ -15,14 +15,46 @@ UMP_InventoryManager::UMP_InventoryManager()
 
 void UMP_InventoryManager::BeginPlay()
 {
-    Super::BeginPlay();
-
-    // If ManagerID is empty, generate a unique GUID.
-    if (GetOwner()->HasAuthority() && ManagerID.IsNone())
-    {
-        ManagerID = FName(*FGuid::NewGuid().ToString());
-    }
+    Super::BeginPlay();    
+    GetManagerID();
 }
+
+FName UMP_InventoryManager::GetManagerID()
+{
+    if (!ManagerID.IsNone()) return ManagerID;
+
+    if (GetOwner()->HasAuthority())
+    {
+        if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+        {
+            if (APlayerState* PS = PC->PlayerState)
+            {
+                if (!bUseDeterministicPlayerID && PS->GetUniqueId().IsValid())
+                {
+                    // Use the Online Subsystem's persistent ID
+                    ManagerID = FName(*PS->GetUniqueId()->ToString());
+                }
+                else
+                {
+                    // Fallback to deterministic Player Index for Editor / PIE / Offline
+                    int32 PlayerIndex = 0;
+                    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+                    {
+                        if (It->Get() == PC)
+                        {
+                            break;
+                        }
+                        PlayerIndex++;
+                    }
+                    ManagerID = FName(*FString::Printf(TEXT("Player_%d"), PlayerIndex));
+                }
+            }
+        }
+    }
+    
+    return ManagerID;
+}
+
 
 void UMP_InventoryManager::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {

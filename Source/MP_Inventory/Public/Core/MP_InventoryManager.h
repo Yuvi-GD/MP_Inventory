@@ -34,6 +34,14 @@ public:
     UPROPERTY(BlueprintReadOnly, Replicated, Category = "MP_Inventory|Manager")
     FName ManagerID;
 
+    /** If true, uses a deterministic PlayerId instead of the Online Subsystem's UniqueNetId. Enable this for Editor testing or offline games so saves persist. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Manager")
+    bool bUseDeterministicPlayerID = true;
+
+    /** Guarantees ManagerID is initialized and returns it. */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager")
+    FName GetManagerID();
+
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
     /** 

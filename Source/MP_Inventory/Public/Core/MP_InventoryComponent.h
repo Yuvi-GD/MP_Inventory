@@ -21,6 +21,8 @@ class MP_INVENTORY_API UMP_InventoryComponent : public UActorComponent
 {
     GENERATED_BODY()
 
+    friend struct FMP_InventoryArray;
+
 public:
 
     UMP_InventoryComponent();
@@ -42,6 +44,14 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryResized OnInventoryResized;
 
+    /** Fired explicitly when a load finishes. Replaces generic 'Refresh'. */
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryLoaded);
+    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
+    FOnInventoryLoaded OnInventoryLoaded;
+
+    /** Sent to the owning client so they know a load occurred and can prep UI. */
+    UFUNCTION(Client, Reliable)
+    void Client_OnInventoryLoaded();
 
     // =========================================================================
     //  LIFECYCLE
@@ -60,18 +70,18 @@ public:
      * Unique GUID for this inventory component. 
      * Registered in the MP_ItemRegistry.
      */
-    UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryID, Category = "MP_Inventory|Config")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryID, Category = "MP_Inventory|Config")
     FName InventoryID;
 
     UFUNCTION()
     void OnRep_InventoryID();
 
     /** Determines who has rights to this inventory (ManagerID, "GLOBAL", or "PRIVATE") */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "MP_Inventory|Config")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category = "MP_Inventory|Config")
     FName OwnerID;
 
     /** If OwnerID is "PRIVATE", only ManagerIDs in this list can access it. */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MP_Inventory|Config")
+    UPROPERTY(BlueprintReadOnly, Category = "MP_Inventory|Config")
     TSet<FName> AccessList;
 
     /** Sets the OwnerID of the inventory at runtime. Must be called on the Server. */
@@ -85,14 +95,6 @@ public:
     /** Revokes access from a specific Manager. */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
     void RevokeAccess(UMP_InventoryManager* Manager);
-
-    /** 
-     * Attempts to find the owning PlayerController and automatically assign its ManagerID as the OwnerID.
-     * Call this at runtime when a player possesses a Pawn that holds this inventory.
-     * Returns true if successfully assigned.
-     */
-    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
-    bool TryAutoAssignOwner();
 
     /** Human readable name (e.g., "Backpack") */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
@@ -118,10 +120,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config",
         meta = (EditCondition = "bEnforceWeightLimit", ClampMin = "0.0"))
     float MaxWeightCapacity = 100.0f;
-
-    /** Save slot name for UGameplayStatics persistence. Override before calling Save/Load. */
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "MP_Inventory|Config")
-    FString SaveSlotName = "Inventory";
 
     /** If true, the entire inventory is locked. Useful during active trade sessions to prevent race conditions. */
     UPROPERTY(BlueprintReadWrite, Replicated, Category = "MP_Inventory|State")
@@ -341,13 +339,20 @@ public:
     //  PERSISTENCE
     // =========================================================================
 
-    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
-    void SaveInventory(const FString& PlayerID);
+    /** Should this component automatically load on BeginPlay and save on EndPlay? Uses OwnerID. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Persistence")
+    bool bAutoSaveLoad = false;
 
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
-    void LoadInventory(const FString& PlayerID);
+    bool SaveInventory();
+
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Persistence")
+    bool LoadInventory();
 
 protected:
+    
+    /** Internal helper to assign OwnerID on BeginPlay. */
+    bool TryAutoAssignOwner();
 
     // =========================================================================
     //  REPLICATED STATE  -  Travels over the network
