@@ -244,3 +244,60 @@ void UMP_InventoryManager::CompactSlots_Implementation(FName TargetInventoryID)
         Comp->CompactSlots();
     }
 }
+
+void UMP_InventoryManager::TransferItemBySlot_Implementation(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity)
+{
+    UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
+    UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
+
+    if (!SourceComp || !TargetComp || Quantity <= 0) return;
+
+    FMP_InventoryItem SourceItem = SourceComp->GetItemBySlotIndex(SourceSlotIndex);
+    if (SourceItem.ItemID.IsNone() || SourceItem.Quantity < Quantity) return;
+
+    // 1. Remove First
+    if (SourceComp->RemoveItem(SourceSlotIndex, Quantity))
+    {
+        // 2. Try Add to Target
+        bool bAddSuccess = false;
+        if (TargetSlotIndex == -1)
+        {
+            bAddSuccess = TargetComp->AddItem(SourceItem.ItemID, Quantity, true);
+        }
+        else
+        {
+            bAddSuccess = TargetComp->AddItemAtSlot(SourceItem.ItemID, Quantity, TargetSlotIndex);
+        }
+
+        // 3. Revert if Target rejected
+        if (!bAddSuccess)
+        {
+            // The slot we took it from might be completely empty now, so we can just add it back.
+            // Using AddItemAtSlot ensures it goes right back where it was.
+            SourceComp->AddItemAtSlot(SourceItem.ItemID, Quantity, SourceSlotIndex);
+        }
+    }
+}
+
+void UMP_InventoryManager::TransferItemByID_Implementation(FName SourceInventoryID, FName TargetInventoryID, FName ItemID, int32 Quantity)
+{
+    UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
+    UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
+
+    if (!SourceComp || !TargetComp || Quantity <= 0 || ItemID.IsNone()) return;
+
+    // Remove first. RemoveItemByID returns true only if the full quantity was successfully removed across stacks.
+    if (SourceComp->RemoveItemByID(ItemID, Quantity))
+    {
+        // Try to add to target
+        bool bAddSuccess = TargetComp->AddItem(ItemID, Quantity, true);
+        
+        // Revert if target rejected
+        if (!bAddSuccess)
+        {
+            // Add back to source. Since we pulled from potentially multiple stacks, 
+            // we just let it auto-stack on the source.
+            SourceComp->AddItem(ItemID, Quantity, true);
+        }
+    }
+}

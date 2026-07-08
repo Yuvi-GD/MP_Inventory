@@ -92,6 +92,12 @@ public:
     void SplitItem(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void TransferItemBySlot(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void TransferItemByID(FName SourceInventoryID, FName TargetInventoryID, FName ItemID, int32 Quantity);
+
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void DropItem(FName TargetInventoryID, int32 SlotIndex, int32 Quantity, FVector DropLocation);
 
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
