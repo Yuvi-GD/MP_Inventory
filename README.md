@@ -28,6 +28,16 @@
 3. Call `AddItem` or `RemoveItem` from the server to mutate state.
 4. Bind your UI logic to the `OnInventoryUpdated` dispatcher to drive visual updates.
 
+## Roadmap
+
+With our core architecture and local tracking optimized, this roadmap defines the next major mechanical features required to finalize the `MP_Inventory` plugin. These features strictly adhere to our design philosophy: they provide bulletproof APIs and core inventory mechanics without forcing specific game logic onto the developer.
+
+### 1. Advanced Filtering and Restrictions
+Allowing specific containers or slots to conditionally reject items based on tags or IDs (e.g., A Wood Bin that only accepts wood, or an Equipment Screen where Slot 0 only accepts Helmets).
+
+### 2. Sockets / Attachments
+Allowing items to safely hold and track sub-items (e.g., inserting a Gem into a Sword, or attaching an Optic onto a Rifle) without bloating the core array replication payload.
+
 ## Contributing
 
 Pull requests are welcome. Whether it is a small bug fix, a performance tweak, or expanding the API, contributions are appreciated. 
