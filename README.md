@@ -28,6 +28,9 @@
 3. Call `AddItem` or `RemoveItem` from the server to mutate state.
 4. Bind your UI logic to the `OnInventoryUpdated` dispatcher to drive visual updates.
 
+> [!WARNING]
+> Please note that for **Infinite Mode (non-grid mode)**, some functionalities (such as merging and shifting slots after removal) may not currently work properly. The plugin is heavily tested and stable primarily for **Grid Mode (Strict Slots)** at this time.
+
 ## Roadmap
 
 With our core architecture and local tracking optimized, this roadmap defines the next major mechanical features required to finalize the `MP_Inventory` plugin. These features strictly adhere to our design philosophy: they provide bulletproof APIs and core inventory mechanics without forcing specific game logic onto the developer.

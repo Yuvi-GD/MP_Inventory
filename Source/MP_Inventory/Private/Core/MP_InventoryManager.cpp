@@ -176,6 +176,72 @@ void UMP_InventoryManager::SwapItems_Implementation(FName TargetInventoryID, int
     }
 }
 
+void UMP_InventoryManager::SwapItemsBetweenInventories_Implementation(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex)
+{
+    UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
+    UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
+
+    if (!SourceComp || !TargetComp) return;
+
+    if (SourceComp == TargetComp)
+    {
+        SourceComp->SwapItems(SourceSlotIndex, TargetSlotIndex);
+        return;
+    }
+
+    FMP_InventoryItem SourceItem = SourceComp->GetItemBySlotIndex(SourceSlotIndex);
+    FMP_InventoryItem TargetItem = TargetComp->GetItemBySlotIndex(TargetSlotIndex);
+
+    if (SourceItem.ItemID.IsNone() && TargetItem.ItemID.IsNone()) return;
+
+    bool bSourceOccupied = !SourceItem.ItemID.IsNone();
+    bool bTargetOccupied = !TargetItem.ItemID.IsNone();
+
+    // PERFECT SWAP: If both slots are occupied, we use UpdateItem to perfectly overwrite the data in-place.
+    // This prevents the arrays from shrinking/shifting during a Remove/Add cycle (critical for non-strict lists).
+    if (bSourceOccupied && bTargetOccupied)
+    {
+        FMP_InventoryItem NewSourceItem = TargetItem;
+        NewSourceItem.SlotIndex = SourceSlotIndex;
+
+        FMP_InventoryItem NewTargetItem = SourceItem;
+        NewTargetItem.SlotIndex = TargetSlotIndex;
+
+        // Try applying Target first
+        if (TargetComp->UpdateItem(NewTargetItem))
+        {
+            if (!SourceComp->UpdateItem(NewSourceItem))
+            {
+                // Revert
+                TargetComp->UpdateItem(TargetItem);
+            }
+        }
+        return;
+    }
+
+    // TRANSFER: Moving to an empty slot. We just remove from one, and Add to the other.
+    if (bSourceOccupied && !bTargetOccupied)
+    {
+        if (SourceComp->RemoveItem(SourceSlotIndex, SourceItem.Quantity))
+        {
+            if (!TargetComp->AddItemAtSlot(SourceItem.ItemID, SourceItem.Quantity, TargetSlotIndex))
+            {
+                SourceComp->AddItemAtSlot(SourceItem.ItemID, SourceItem.Quantity, SourceSlotIndex);
+            }
+        }
+    }
+    else if (!bSourceOccupied && bTargetOccupied)
+    {
+        if (TargetComp->RemoveItem(TargetSlotIndex, TargetItem.Quantity))
+        {
+            if (!SourceComp->AddItemAtSlot(TargetItem.ItemID, TargetItem.Quantity, SourceSlotIndex))
+            {
+                TargetComp->AddItemAtSlot(TargetItem.ItemID, TargetItem.Quantity, TargetSlotIndex);
+            }
+        }
+    }
+}
+
 void UMP_InventoryManager::SplitItem_Implementation(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit)
 {
     if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
@@ -298,6 +364,59 @@ void UMP_InventoryManager::TransferItemByID_Implementation(FName SourceInventory
             // Add back to source. Since we pulled from potentially multiple stacks, 
             // we just let it auto-stack on the source.
             SourceComp->AddItem(ItemID, Quantity, true);
+        }
+    }
+}
+
+void UMP_InventoryManager::MergeSlotsBetweenInventories_Implementation(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex)
+{
+    UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
+    UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
+
+    if (!SourceComp || !TargetComp) return;
+
+    FMP_InventoryItem SourceItem = SourceComp->GetItemBySlotIndex(SourceSlotIndex);
+    FMP_InventoryItem TargetItem = TargetComp->GetItemBySlotIndex(TargetSlotIndex);
+
+    // Can only merge if they are the exact same item
+    if (SourceItem.ItemID.IsNone() || SourceItem.ItemID != TargetItem.ItemID) return;
+    
+    if (SourceItem.bIsLocked || TargetItem.bIsLocked) return;
+
+    UGameInstance* GameInstance = GetWorld()->GetGameInstance();
+    UMP_ItemRegistry* Registry = GameInstance ? GameInstance->GetSubsystem<UMP_ItemRegistry>() : nullptr;
+    if (!Registry) return;
+
+    const UMP_ItemDefinition* Def = Registry->GetItemDefinitionByName(SourceItem.ItemID);
+    if (!Def) return;
+
+    int32 TargetSlack = Def->MaxStackSize - TargetItem.Quantity;
+    if (TargetSlack <= 0) return; // Target stack is already full
+
+    // Check Weight Limits on Target (if moving to a different component)
+    if (SourceComp != TargetComp && TargetComp->bEnforceWeightLimit)
+    {
+        float RemainingWeight = TargetComp->MaxWeightCapacity - TargetComp->GetCurrentWeight();
+        int32 MaxAffordableByWeight = FMath::FloorToInt(RemainingWeight / Def->PerItemWeight);
+        if (MaxAffordableByWeight < TargetSlack)
+        {
+            TargetSlack = MaxAffordableByWeight;
+        }
+    }
+
+    int32 AmountToMove = FMath::Min(SourceItem.Quantity, TargetSlack);
+    if (AmountToMove <= 0) return;
+
+    // Execute atomic merge. 
+    // IMPORTANT: We MUST adjust the target FIRST before removing from the source.
+    // If we remove from the source first in a non-strict list, the array shifts, 
+    // and TargetSlotIndex becomes invalid, causing the adjustment to fail and rollback!
+    if (TargetComp->AdjustItemQuantity(TargetSlotIndex, AmountToMove))
+    {
+        if (!SourceComp->RemoveItem(SourceSlotIndex, AmountToMove))
+        {
+            // Failsafe rollback
+            TargetComp->AdjustItemQuantity(TargetSlotIndex, -AmountToMove);
         }
     }
 }

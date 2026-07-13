@@ -35,17 +35,17 @@ public:
      * Fired on both server and client whenever the inventory changes.
      * SlotIndex represents the logical grid slot that was Updated, Added, or Removed.
      */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, EInventoryDelta, Delta, int32, SlotIndex);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnInventoryUpdated, FName, InventoryID, EInventoryDelta, Delta, int32, SlotIndex);
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryUpdated OnInventoryUpdated;
 
     /** Fired when the inventory max size changes. */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryResized, int32, NewSize);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryResized, FName, InventoryID, int32, NewSize);
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryResized OnInventoryResized;
 
     /** Fired explicitly when a load finishes. Replaces generic 'Refresh'. */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryLoaded);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryLoaded, FName, InventoryID);
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryLoaded OnInventoryLoaded;
 

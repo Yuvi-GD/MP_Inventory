@@ -137,7 +137,6 @@ void UMP_InventoryComponent::GrantAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Add(Manager->ManagerID);
-        //Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
         Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
     }
 }
@@ -147,7 +146,6 @@ void UMP_InventoryComponent::RevokeAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Remove(Manager->ManagerID);
-        //Manager->OnInventoryActionNotify.Broadcast(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
         Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
     }
 }
@@ -201,8 +199,10 @@ UMP_ItemRegistry* UMP_InventoryComponent::GetRegistry() const
 
 int32 UMP_InventoryComponent::GetArrayIndexFromSlot(int32 SlotIndex) const
 {
-    if (!bUseStrictSlots) return SlotIndex; 
-    
+    // CRITICAL FIX: We must ALWAYS use the IndexTracker.
+    // We cannot assume SlotIndex == ArrayIndex for non-strict lists, because
+    // Unreal's FastArraySerializer blindly uses RemoveAtSwap on the Client during replication,
+    // which completely jumbles the TArray order on the Client!
     if (InventoryItems.IndexTracker.IsValidIndex(SlotIndex))
     {
         return InventoryItems.IndexTracker[SlotIndex];
@@ -213,7 +213,7 @@ int32 UMP_InventoryComponent::GetArrayIndexFromSlot(int32 SlotIndex) const
 
 void UMP_InventoryComponent::FireInventoryUpdate(EInventoryDelta Delta, int32 SlotIndex)
 {
-    OnInventoryUpdated.Broadcast(Delta, SlotIndex);
+    OnInventoryUpdated.Broadcast(InventoryID, Delta, SlotIndex);
 }
 
 bool UMP_InventoryComponent::ResizeInventory(int32 NewMaxSlots)
@@ -245,7 +245,7 @@ bool UMP_InventoryComponent::ResizeInventory(int32 NewMaxSlots)
 
     // Set value AFTER everything is done, as requested
     MaxInventorySlots = NewMaxSlots;
-    OnInventoryResized.Broadcast(MaxInventorySlots);
+    OnInventoryResized.Broadcast(InventoryID, MaxInventorySlots);
     return true;
 }
 
@@ -253,7 +253,7 @@ void UMP_InventoryComponent::OnRep_MaxInventorySlots()
 {
     // The value has already been updated by the engine replication system.
     // We just need to notify the UI on the client so it can expand/shrink its grid.
-    OnInventoryResized.Broadcast(MaxInventorySlots);
+    OnInventoryResized.Broadcast(InventoryID, MaxInventorySlots);
 }
 
 void UMP_InventoryComponent::ShrinkTracker(int32 NewSize)
@@ -402,7 +402,7 @@ bool UMP_InventoryComponent::LoadInventory()
     }
 
     // Notify Listeners (Replaces Refresh)
-    OnInventoryLoaded.Broadcast();
+    OnInventoryLoaded.Broadcast(InventoryID);
     Client_OnInventoryLoaded();
     
     return true;
@@ -410,7 +410,7 @@ bool UMP_InventoryComponent::LoadInventory()
 
 void UMP_InventoryComponent::Client_OnInventoryLoaded_Implementation()
 {
-    OnInventoryLoaded.Broadcast();
+    OnInventoryLoaded.Broadcast(InventoryID);
 }
 
 
@@ -694,14 +694,14 @@ bool UMP_InventoryComponent::AddItemAtSlot(FName ItemID, int32 Quantity, int32 T
     else
     {
         if (bUseStrictSlots && (TargetSlotIndex >= MaxInventorySlots || InventoryItems.Items.Num() >= MaxInventorySlots)) return false;
-        if (!bUseStrictSlots && TargetSlotIndex > InventoryItems.Items.Num()) return false;
         
         if (Quantity > Def->MaxStackSize) return false;
 
         FMP_InventoryItem NewItem;
         NewItem.ItemID = ItemID;
         NewItem.Quantity = Quantity;
-        NewItem.SlotIndex = TargetSlotIndex;
+        NewItem.SlotIndex = bUseStrictSlots ? TargetSlotIndex : InventoryItems.Items.Num();
+        
         InventoryItems.AddItem(NewItem);
         CurrentWeight += Def->PerItemWeight * Quantity;
     }
