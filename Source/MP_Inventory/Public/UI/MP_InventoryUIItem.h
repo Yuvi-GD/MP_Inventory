@@ -24,7 +24,7 @@ public:
 	FOnInventoryUIItemUpdated OnInventoryUIItemUpdated;
 
 	/** Fired for specific callback actions related to inventory operations (e.g., merging, splitting). */
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUIItemCallBack, int32, IndexOperation, int32, SlotIndex);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUIItemCallBack, FName, InventoryID, int32, SlotIndex);
 	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "MP_Inventory|Events")
 	FOnInventoryUIItemCallBack OnInventoryUIItemCallBack;
 

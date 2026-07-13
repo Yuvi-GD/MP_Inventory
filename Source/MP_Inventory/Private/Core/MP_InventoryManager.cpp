@@ -2,6 +2,7 @@
 
 #include "Core/MP_InventoryManager.h"
 #include "Core/MP_InventoryComponent.h"
+#include "Core/MP_InventoryPickupInterface.h"
 #include "Core/MP_ItemRegistry.h"
 #include "MP_Inventory.h"
 #include "Engine/GameInstance.h"
@@ -316,10 +317,18 @@ void UMP_InventoryManager::TransferItemBySlot_Implementation(FName SourceInvento
     UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
     UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
 
-    if (!SourceComp || !TargetComp || Quantity <= 0) return;
+    if (!SourceComp || !TargetComp) return;
 
     FMP_InventoryItem SourceItem = SourceComp->GetItemBySlotIndex(SourceSlotIndex);
-    if (SourceItem.ItemID.IsNone() || SourceItem.Quantity < Quantity) return;
+    if (SourceItem.ItemID.IsNone()) return;
+    if(Quantity == -1)
+    {
+        Quantity = SourceItem.Quantity;
+    }
+    else if (SourceItem.Quantity < Quantity)
+    {
+        return;
+    }
 
     // 1. Remove First
     if (SourceComp->RemoveItem(SourceSlotIndex, Quantity))
@@ -419,4 +428,115 @@ void UMP_InventoryManager::MergeSlotsBetweenInventories_Implementation(FName Sou
             TargetComp->AdjustItemQuantity(TargetSlotIndex, -AmountToMove);
         }
     }
+}
+void UMP_InventoryManager::LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex)
+{
+    LootGroundItem_Implementation(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex);
+}
+
+void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex)
+{
+    if (!IsValid(GroundItemActor) || GroundItemActor->IsPendingKillPending()) return;
+
+    UMP_InventoryComponent* TargetComp = GetAndValidateComponent(TargetInventoryID);
+    if (!TargetComp) return;
+
+    if (!GroundItemActor->Implements<UMP_InventoryPickupInterface>()) return;
+
+    // Distance check to ensure the player isn't cheating by picking up items from across the map
+    // Try Case A: Owner is already the Pawn
+    APawn* Pawn = Cast<APawn>(TargetComp->GetOwner());
+
+    // Try Case B: Owner is a Controller
+    if (!Pawn)
+    {
+        if (APlayerController* PC = Cast<APlayerController>(TargetComp->GetOwner()))
+        {
+            Pawn = PC->GetPawn();
+        }
+    }
+
+    // Try Case C: Owner is the PlayerState
+    if (!Pawn)
+    {
+        if (APlayerState* PS = Cast<APlayerState>(TargetComp->GetOwner()))
+        {
+            Pawn = PS->GetPawn();
+        }
+    }
+
+    if (Pawn)
+    {
+        float Distance = FVector::Dist(Pawn->GetActorLocation(), GroundItemActor->GetActorLocation());
+        if (Distance > 450.0f) return;
+    }
+    else
+    {
+        // Fail-safe: If we couldn't find a pawn, we shouldn't allow the pickup
+        UE_LOG(LogMPInventory, Warning, TEXT("Pickup failed: Could not resolve a valid physical Pawn from the inventory component."));
+        return;
+    }
+
+    FName ItemID;
+    int32 Quantity;
+    IMP_InventoryPickupInterface::Execute_GetPickupData(GroundItemActor, ItemID, Quantity);
+
+    if (ItemID.IsNone() || Quantity <= 0) return;
+
+    bool bSuccess = false;
+    if (TargetSlotIndex == -1)
+    {
+        bSuccess = TargetComp->AddItem(ItemID, Quantity, true);
+    }
+    else
+    {
+        bSuccess = TargetComp->AddItemAtSlot(ItemID, Quantity, TargetSlotIndex);
+    }
+
+    if (bSuccess)
+    {
+        GroundItemActor->Destroy();
+    }
+}
+
+void UMP_InventoryManager::AddNearbyLoot(AActor* LootItem)
+{
+    if (IsValid(LootItem) && !NearbyLoot.Contains(LootItem))
+    {
+        int32 Index = NearbyLoot.Add(LootItem);
+        OnNearbyLootChanged.Broadcast(true, Index);
+    }
+}
+
+void UMP_InventoryManager::RemoveNearbyLoot(AActor* LootItem)
+{
+    int32 Index = NearbyLoot.Find(LootItem);
+    if (Index != INDEX_NONE)
+    {
+        NearbyLoot.RemoveAt(Index);
+        OnNearbyLootChanged.Broadcast(false, Index);
+    }
+}
+
+void UMP_InventoryManager::RemoveNearbyLootByIndex(int32 Index)
+{
+    if (NearbyLoot.IsValidIndex(Index))
+    {
+        NearbyLoot.RemoveAt(Index);
+        OnNearbyLootChanged.Broadcast(false, Index);
+    }
+}
+
+AActor* UMP_InventoryManager::GetNearbyLootAt(int32 Index) const
+{
+    if (NearbyLoot.IsValidIndex(Index))
+    {
+        return NearbyLoot[Index];
+    }
+    return nullptr;
+}
+
+const TArray<AActor*>& UMP_InventoryManager::GetAllNearbyLoot() const
+{
+    return NearbyLoot;
 }

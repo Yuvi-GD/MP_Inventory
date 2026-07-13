@@ -10,6 +10,7 @@
 class UMP_InventoryComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryActionNotify, FName, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNearbyLootChanged, bool, bAdded, int32, SlotIndex);
 
 /**
  * UMP_InventoryManager
@@ -25,6 +26,34 @@ class MP_INVENTORY_API UMP_InventoryManager : public UActorComponent
 
 public:    
     UMP_InventoryManager();
+
+    // =========================================================================
+    //  NEARBY LOOT API (Local UI Tracking)
+    // =========================================================================
+
+    /** Fired when a nearby loot item is added or removed. bAdded is true if added, false if removed. */
+    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Manager|NearbyLoot")
+    FOnNearbyLootChanged OnNearbyLootChanged;
+
+    /** Adds an actor to the local nearby loot array and fires the delegate. */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager|NearbyLoot")
+    void AddNearbyLoot(AActor* LootItem);
+
+    /** Removes an actor from the local nearby loot array and fires the delegate. */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager|NearbyLoot")
+    void RemoveNearbyLoot(AActor* LootItem);
+
+    /** Removes an actor from the local nearby loot array and fires the delegate. */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager|NearbyLoot")
+    void RemoveNearbyLootByIndex(int32 Index);
+
+    /** Gets a specific nearby loot actor by its array index. */
+    UFUNCTION(BlueprintPure, Category = "MP_Inventory|Manager|NearbyLoot")
+    AActor* GetNearbyLootAt(int32 Index) const;
+
+    /** Gets all currently tracked nearby loot actors. */
+    UFUNCTION(BlueprintPure, Category = "MP_Inventory|Manager|NearbyLoot")
+    const TArray<AActor*>& GetAllNearbyLoot() const;
 
 protected:
     virtual void BeginPlay() override;
@@ -113,13 +142,31 @@ public:
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void TransferItemBySlot(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity);
 
-    /** Requests the server to pull a quantity of ItemID from Source and push it into Target, cascading stacks if needed. */
+    /**
+    * Requests the server to pull a quantity of ItemID from Source and push it into Target, cascading stacks if needed.
+    * TargetSlotIndex can be -1 to auto-loot into the first available slot.
+    * If Quantity = -1, it will transfer the entire stack from the Source slot.
+    */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void TransferItemByID(FName SourceInventoryID, FName TargetInventoryID, FName ItemID, int32 Quantity);
 
     /** Requests the server to merge as much quantity as possible from the Source slot into the Target slot. */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void MergeSlotsBetweenInventories(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex);
+
+    /**
+    * Requests the server to pick up a physical item actor from the ground.
+    * TargetSlotIndex can be -1 to auto-loot into the first available slot.
+    */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Commands")
+    void LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex = -1);
+
+    /**
+    * Requests the server to pick up a physical item actor from the ground.
+    * TargetSlotIndex can be -1 to auto-loot into the first available slot.
+    */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void LootGroundItem(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex = -1);
 
     /** Requests the server to remove an item and physically spawn its corresponding Actor mesh in the 3D world. */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
@@ -137,4 +184,8 @@ public:
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void CompactSlots(FName TargetInventoryID);
 
+protected:
+    /** Local array of nearby loot items. Not replicated. */
+    UPROPERTY()
+    TArray<AActor*> NearbyLoot;
 };
