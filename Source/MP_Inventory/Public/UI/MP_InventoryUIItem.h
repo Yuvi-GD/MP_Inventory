@@ -40,22 +40,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory", meta = (ExposeOnSpawn = "true"))
 	int32 SlotIndex = -1;
 
-	// Physical array position in the backend FastArray
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory", meta = (ExposeOnSpawn = "true"))
-	int32 ArrayIndex = -1;
-
 	// The owning inventory ID this item belongs to
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory", meta = (ExposeOnSpawn = "true"))
 	FName InventoryID = NAME_None;
 
+	// Reference to the physical world actor (Used primarily for Proximity Loot Panels)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory", meta = (ExposeOnSpawn = "true"))
+	AActor* GroundActor = nullptr;
+
 	// Initializes the inventory item with the given data, quantity, slot index, and array index.
 	UFUNCTION(BlueprintCallable, Category = "MP_Inventory")
-	void Initialize(UMP_ItemDefinition* InItemData, int32 InQuantity, int32 InSlotIndex, int32 InArrayIndex = -1, FName InInventoryID = NAME_None)
+	void Initialize(UMP_ItemDefinition* InItemData, int32 InQuantity, int32 InSlotIndex, FName InInventoryID = NAME_None)
 	{
 		ItemData = InItemData;
 		Quantity = InQuantity;
 		SlotIndex = InSlotIndex;
-        ArrayIndex = InArrayIndex;
 		InventoryID = InInventoryID;
 		OnInventoryUIItemUpdated.Broadcast();
 	}

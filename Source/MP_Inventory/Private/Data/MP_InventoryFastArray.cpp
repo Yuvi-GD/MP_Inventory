@@ -142,28 +142,37 @@ void FMP_InventoryArray::RemoveAndShift(int32 ArrayIndex, int32 Quantity)
 
     Items.RemoveAt(ArrayIndex);
 
-    // Infinite mode: shift every subsequent item's SlotIndex down by 1 so they stay contiguous
-    for (int32 i = ArrayIndex; i < Items.Num(); ++i)
+    int32 HighestOldSlot = -1;
+    for (int32 i = 0; i < Items.Num(); i++)
     {
-        int32 OldSlot = Items[i].SlotIndex;
-        if (IndexTracker.IsValidIndex(OldSlot) && IndexTracker[OldSlot] == i + 1)
+        if (Items[i].SlotIndex >= FreedSlot)
         {
-            IndexTracker[OldSlot] = INDEX_NONE;
-        }
+            int32 OldSlot = Items[i].SlotIndex;
+            
+            // Keep track of the highest slot we've seen
+            if (OldSlot > HighestOldSlot) 
+            {
+                HighestOldSlot = OldSlot;
+            }
+            
+            int32 NewSlot = OldSlot - 1;
 
-        Items[i].SlotIndex--;
-        int32 NewSlot = Items[i].SlotIndex;
-        
-        if (NewSlot >= IndexTracker.Num())
+            // Update the item and the tracker
+            Items[i].SlotIndex = NewSlot;
+            IndexTracker[NewSlot] = i; 
+
+            MarkItemDirty(Items[i]);
+            NotifyOwner(EInventoryDelta::Updated, NewSlot); 
+        }
+        else if (IndexTracker[Items[i].SlotIndex] != i)
         {
-            ExpandTracker(NewSlot + 1);
+            IndexTracker[Items[i].SlotIndex] = i; 
         }
-        IndexTracker[NewSlot] = i;
-
-        MarkItemDirty(Items[i]);
-        NotifyOwner(EInventoryDelta::Updated, NewSlot);
     }
-
+    if (HighestOldSlot != -1 && IndexTracker.IsValidIndex(HighestOldSlot))
+    {
+        IndexTracker[HighestOldSlot] = INDEX_NONE;
+    }
     MarkArrayDirty();
 }
 
@@ -322,23 +331,26 @@ void FMP_InventoryArray::PostReplicatedChange(const TArrayView<int32>& ChangedIn
                 continue;
             }
 
-            int32 OldSlot = INDEX_NONE;
-
-            // 1. Find the old slot using the tracker since it moved
-            for (int32 i = 0; i < IndexTracker.Num(); ++i)
+            if (bIsStrict)
             {
-                if (IndexTracker[i] == Index)
+                int32 OldSlot = INDEX_NONE;
+
+                // 1. Find the old slot using the tracker since it moved
+                for (int32 i = 0; i < IndexTracker.Num(); ++i)
                 {
-                    OldSlot = i;
-                    IndexTracker[i] = INDEX_NONE;
-                    break;
+                    if (IndexTracker[i] == Index)
+                    {
+                        OldSlot = i;
+                        IndexTracker[i] = INDEX_NONE;
+                        break;
+                    }
                 }
-            }
 
-            // 2. Clear the UI ghost if the slot changed
-            if (OldSlot != INDEX_NONE && OldSlot != NewSlot)
-            {
-                NotifyOwner(EInventoryDelta::Removed, OldSlot);
+                // 2. Clear the UI ghost if the slot changed
+                if (OldSlot != INDEX_NONE && OldSlot != NewSlot)
+                {
+                    NotifyOwner(EInventoryDelta::Removed, OldSlot);
+                }
             }
 
             // 3. Update the tracker with the new slot

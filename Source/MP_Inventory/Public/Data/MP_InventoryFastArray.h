@@ -30,6 +30,12 @@ struct MP_INVENTORY_API FMP_InventoryArray : public FFastArraySerializer
     TArray<FMP_InventoryItem> Items;
 
     /**
+     * Cached setting from the Inventory Component. Determines if slots are rigid (true) or shifting (false).
+     */
+    UPROPERTY(NotReplicated)
+    bool bIsStrict = true;
+
+    /**
      * Local Tracker mapping SlotIndex to ArrayIndex. 
      * E.g., IndexTracker[5] = 2 means Slot 5 holds the item at Array Index 2.
      * Not replicated!

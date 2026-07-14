@@ -30,6 +30,7 @@ void UMP_InventoryComponent::BeginPlay()
 {
     Super::BeginPlay();
     InventoryItems.SetOwner(this);
+    InventoryItems.bIsStrict = bUseStrictSlots;
 
     if (GetOwner()->HasAuthority())
     {
@@ -369,6 +370,7 @@ bool UMP_InventoryComponent::LoadInventory()
     // Restore Items
     InventoryItems.Items = SaveData.InventoryData;
     InventoryItems.SetOwner(this);
+    InventoryItems.bIsStrict = bUseStrictSlots;
     InventoryItems.MarkArrayDirty();
 
     // Rebuild IndexTracker if strict slots are used
