@@ -431,7 +431,7 @@ void UMP_InventoryManager::MergeSlotsBetweenInventories_Implementation(FName Sou
 }
 void UMP_InventoryManager::LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex)
 {
-    LootGroundItem_Implementation(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex);
+    LootGroundItem(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex);
 }
 
 void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex)
