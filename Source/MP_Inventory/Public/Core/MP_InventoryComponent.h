@@ -98,7 +98,7 @@ public:
 
     /** Human readable name (e.g., "Backpack") */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
-    FName ComponentName;
+    FName InventoryName;
 
     /**
      * TRUE  = Fixed grid (Minecraft). Slot count is capped at MaxInventorySlots.

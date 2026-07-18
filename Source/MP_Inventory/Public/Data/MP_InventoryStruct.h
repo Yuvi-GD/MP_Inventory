@@ -119,7 +119,7 @@ struct FMP_InventorySaveData
     TArray<FMP_InventoryItem> InventoryData;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-    FName ComponentName;
+    FName InventoryName;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
     bool bUseStrictSlots = true;

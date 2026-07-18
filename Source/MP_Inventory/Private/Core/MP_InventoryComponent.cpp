@@ -37,7 +37,7 @@ void UMP_InventoryComponent::BeginPlay()
         if (InventoryID.IsNone())
         {
             UE_LOG(LogTemp, Warning, TEXT("InventoryID is None on %s! Please manually assign an InventoryID in Blueprint for persistence."), *GetOwner()->GetName());
-            InventoryID = FName(*FString::Printf(TEXT("%s_%s"), *GetOwner()->GetName(), *ComponentName.ToString()));
+            InventoryID = FName(*FString::Printf(TEXT("%s_%s"), *GetOwner()->GetName(), *InventoryName.ToString()));
         }
 
         if (OwnerID.IsNone())
@@ -138,7 +138,7 @@ void UMP_InventoryComponent::GrantAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Add(Manager->ManagerID);
-        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *ComponentName.ToString())));
+        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *InventoryName.ToString())));
     }
 }
 
@@ -147,7 +147,7 @@ void UMP_InventoryComponent::RevokeAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Remove(Manager->ManagerID);
-        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *ComponentName.ToString())));
+        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *InventoryName.ToString())));
     }
 }
 
@@ -326,7 +326,7 @@ bool UMP_InventoryComponent::SaveInventory()
 
     FMP_InventorySaveData SaveData;
     SaveData.InventoryData = InventoryItems.Items;
-    SaveData.ComponentName = ComponentName;
+    SaveData.InventoryName = InventoryName;
     SaveData.bUseStrictSlots = bUseStrictSlots;
     SaveData.MaxInventorySlots = MaxInventorySlots;
     SaveData.bEnforceWeightLimit = bEnforceWeightLimit;
@@ -361,7 +361,7 @@ bool UMP_InventoryComponent::LoadInventory()
     FMP_InventorySaveData SaveData = SaveGame->SavedInventory[InventoryID];
 
     // Restore Configuration
-    ComponentName = SaveData.ComponentName;
+    InventoryName = SaveData.InventoryName;
     bUseStrictSlots = SaveData.bUseStrictSlots;
     MaxInventorySlots = SaveData.MaxInventorySlots;
     bEnforceWeightLimit = SaveData.bEnforceWeightLimit;
