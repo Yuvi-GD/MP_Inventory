@@ -29,7 +29,7 @@ public:
 	 * @param Quantity The amount of the item being dropped.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "MP_Inventory|Pickup")
-	void InitializePickup(FName ItemID, int32 Quantity);
+	void SetPickupData(FName ItemID, int32 Quantity);
 
 	/**
 	 * Called by the server when a player attempts to loot this item from the ground.

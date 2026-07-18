@@ -575,7 +575,7 @@ AActor* UMP_InventoryComponent::DropItem(int32 SlotIndex, int32 Quantity, FVecto
     AActor* SpawnedActor = World->SpawnActor<AActor>(Def->DropActorClass, DropLocation, FRotator::ZeroRotator, SpawnParams);
     if (SpawnedActor && SpawnedActor->Implements<UMP_InventoryPickupInterface>())
     {
-        IMP_InventoryPickupInterface::Execute_InitializePickup(SpawnedActor, ItemID, Quantity);
+        IMP_InventoryPickupInterface::Execute_SetPickupData(SpawnedActor, ItemID, Quantity);
     }
 
     return SpawnedActor;

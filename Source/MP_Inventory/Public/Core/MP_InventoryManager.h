@@ -10,7 +10,7 @@
 class UMP_InventoryComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryActionNotify, FName, Reason);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNearbyLootChanged, bool, bAdded, int32, SlotIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNearbyLootChanged, EInventoryDelta, Delta, int32, SlotIndex);
 
 /**
  * UMP_InventoryManager
@@ -46,6 +46,9 @@ public:
     /** Removes an actor from the local nearby loot array and fires the delegate. */
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager|NearbyLoot")
     void RemoveNearbyLootByIndex(int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Manager|NearbyLoot")
+	void UpdateNearbyLoot(AActor* LootItem);
 
     /** Gets a specific nearby loot actor by its array index. */
     UFUNCTION(BlueprintPure, Category = "MP_Inventory|Manager|NearbyLoot")
@@ -166,7 +169,7 @@ public:
     * TargetSlotIndex can be -1 to auto-loot into the first available slot.
     */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void LootGroundItem(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex = -1);
+    void LootGroundItem(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex = -1, int32 Quantity = -1);
 
     /** Requests the server to remove an item and physically spawn its corresponding Actor mesh in the 3D world. */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")

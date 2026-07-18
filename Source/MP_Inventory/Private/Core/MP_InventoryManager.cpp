@@ -434,7 +434,7 @@ void UMP_InventoryManager::LootGroundItemByIndex(int32 Index, FName TargetInvent
     LootGroundItem(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex);
 }
 
-void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex)
+void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity)
 {
     if (!IsValid(GroundItemActor) || GroundItemActor->IsPendingKillPending()) return;
 
@@ -478,10 +478,24 @@ void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor
     }
 
     FName ItemID;
-    int32 Quantity;
-    IMP_InventoryPickupInterface::Execute_GetPickupData(GroundItemActor, ItemID, Quantity);
+    int32 TotalQuantity;
+    IMP_InventoryPickupInterface::Execute_GetPickupData(GroundItemActor, ItemID, TotalQuantity);
 
-    if (ItemID.IsNone() || Quantity <= 0) return;
+    if (ItemID.IsNone() || TotalQuantity <= 0) return;
+
+    if (Quantity == -1)
+    {
+        Quantity = TotalQuantity;
+		TotalQuantity = 0;
+    }
+    else if (Quantity > TotalQuantity)
+    {
+		return; // Can't loot more than the item has
+	}
+    else if (Quantity <= TotalQuantity)
+    {
+        TotalQuantity -= Quantity; // Reduce the quantity to loot to the expected amount, leaving the rest on the ground
+	}
 
     bool bSuccess = false;
     if (TargetSlotIndex == -1)
@@ -495,7 +509,14 @@ void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor
 
     if (bSuccess)
     {
-        GroundItemActor->Destroy();
+        if (TotalQuantity == 0)
+        {
+            GroundItemActor->Destroy();
+        }
+		else if (TotalQuantity > 0)
+        {
+            IMP_InventoryPickupInterface::Execute_SetPickupData(GroundItemActor, ItemID, TotalQuantity);
+        }
     }
 }
 
@@ -504,7 +525,7 @@ void UMP_InventoryManager::AddNearbyLoot(AActor* LootItem)
     if (IsValid(LootItem) && !NearbyLoot.Contains(LootItem))
     {
         int32 Index = NearbyLoot.Add(LootItem);
-        OnNearbyLootChanged.Broadcast(true, Index);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Added, Index);
     }
 }
 
@@ -514,7 +535,7 @@ void UMP_InventoryManager::RemoveNearbyLoot(AActor* LootItem)
     if (Index != INDEX_NONE)
     {
         NearbyLoot.RemoveAt(Index);
-        OnNearbyLootChanged.Broadcast(false, Index);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
     }
 }
 
@@ -523,7 +544,16 @@ void UMP_InventoryManager::RemoveNearbyLootByIndex(int32 Index)
     if (NearbyLoot.IsValidIndex(Index))
     {
         NearbyLoot.RemoveAt(Index);
-        OnNearbyLootChanged.Broadcast(false, Index);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
+    }
+}
+
+void UMP_InventoryManager::UpdateNearbyLoot(AActor* LootItem)
+{
+    int32 Index = NearbyLoot.Find(LootItem);
+    if (Index != INDEX_NONE)
+    {
+		OnNearbyLootChanged.Broadcast(EInventoryDelta::Updated, Index);
     }
 }
 
