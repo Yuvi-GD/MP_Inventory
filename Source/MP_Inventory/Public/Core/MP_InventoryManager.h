@@ -128,6 +128,10 @@ public:
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void SwapItems(FName TargetInventoryID, int32 SlotIndexA, int32 SlotIndexB);
 
+    /** Requests the server to extract quantity from one stack and place it in another slot (or auto-assign if TargetSlotIndex is -1). */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
+    void SplitItem(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
+
     // =========================================================================
     //  MULTI-COMPONENT RPCs
     //  Operations that bridge two distinct inventories (or the same inventory)
@@ -136,10 +140,6 @@ public:
     /** Requests an atomic swap between two different inventories. Rolls back if weight limits reject the transfer. */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
     void SwapItemsBetweenInventories(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex);
-
-    /** Requests the server to extract quantity from one stack and place it in another slot (or auto-assign if TargetSlotIndex is -1). */
-    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
-    void SplitItem(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit);
 
     /** Requests the server to move a specific slot's quantity from one inventory to another. */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "MP_Inventory|Commands")
@@ -162,7 +162,7 @@ public:
     * TargetSlotIndex can be -1 to auto-loot into the first available slot.
     */
     UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Commands")
-    void LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex = -1);
+    void LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex = -1, int32 Quantity = -1);
 
     /**
     * Requests the server to pick up a physical item actor from the ground.

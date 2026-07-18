@@ -110,6 +110,62 @@ void UMP_InventoryManager::Client_OnActionNotify_Implementation(FName Reason)
 }
 
 // =========================================================================
+//  NEARBY LOOT API (Local UI Tracking)
+// =========================================================================
+
+void UMP_InventoryManager::AddNearbyLoot(AActor* LootItem)
+{
+    if (IsValid(LootItem) && !NearbyLoot.Contains(LootItem))
+    {
+        int32 Index = NearbyLoot.Add(LootItem);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Added, Index);
+    }
+}
+
+void UMP_InventoryManager::RemoveNearbyLoot(AActor* LootItem)
+{
+    int32 Index = NearbyLoot.Find(LootItem);
+    if (Index != INDEX_NONE)
+    {
+        NearbyLoot.RemoveAt(Index);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
+    }
+}
+
+void UMP_InventoryManager::RemoveNearbyLootByIndex(int32 Index)
+{
+    if (NearbyLoot.IsValidIndex(Index))
+    {
+        NearbyLoot.RemoveAt(Index);
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
+    }
+}
+
+void UMP_InventoryManager::UpdateNearbyLoot(AActor* LootItem)
+{
+    int32 Index = NearbyLoot.Find(LootItem);
+    if (Index != INDEX_NONE)
+    {
+        OnNearbyLootChanged.Broadcast(EInventoryDelta::Updated, Index);
+    }
+}
+
+AActor* UMP_InventoryManager::GetNearbyLootAt(int32 Index) const
+{
+    if (NearbyLoot.IsValidIndex(Index))
+    {
+        return NearbyLoot[Index];
+    }
+    return nullptr;
+}
+
+const TArray<AActor*>& UMP_InventoryManager::GetAllNearbyLoot() const
+{
+    return NearbyLoot;
+}
+
+
+// =========================================================================
 //  CLIENT-TO-SERVER RPC IMPLEMENTATIONS
 // =========================================================================
 
@@ -177,6 +233,19 @@ void UMP_InventoryManager::SwapItems_Implementation(FName TargetInventoryID, int
     }
 }
 
+void UMP_InventoryManager::SplitItem_Implementation(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit)
+{
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
+    {
+        Comp->SplitItem(SourceSlotIndex, TargetSlotIndex, QuantityToSplit);
+    }
+}
+
+// =========================================================================
+//  MULTI-COMPONENT RPCs
+//  Operations that bridge two distinct inventories (or the same inventory)
+// =========================================================================
+
 void UMP_InventoryManager::SwapItemsBetweenInventories_Implementation(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex)
 {
     UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
@@ -243,75 +312,6 @@ void UMP_InventoryManager::SwapItemsBetweenInventories_Implementation(FName Sour
     }
 }
 
-void UMP_InventoryManager::SplitItem_Implementation(FName TargetInventoryID, int32 SourceSlotIndex, int32 TargetSlotIndex, int32 QuantityToSplit)
-{
-    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
-    {
-        Comp->SplitItem(SourceSlotIndex, TargetSlotIndex, QuantityToSplit);
-    }
-}
-
-void UMP_InventoryManager::DropItem_Implementation(FName TargetInventoryID, int32 SlotIndex, int32 Quantity, FVector DropLocation)
-{
-    if (Quantity <= 0) return;
-
-    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
-    {
-        if (AActor* CompOwner = Comp->GetOwner())
-        {
-            FVector OwnerLoc = CompOwner->GetActorLocation();
-
-            // If the inventory is on a Controller or PlayerState, we need the physical Pawn's location instead
-            if (APlayerController* PC = Cast<APlayerController>(CompOwner))
-            {
-                if (APawn* Pawn = PC->GetPawn())
-                {
-                    OwnerLoc = Pawn->GetActorLocation();
-                }
-            }
-            else if (APlayerState* PS = Cast<APlayerState>(CompOwner))
-            {
-                if (APawn* Pawn = PS->GetPawn())
-                {
-                    OwnerLoc = Pawn->GetActorLocation();
-                }
-            }
-
-            float MaxDist = 500.0f; // Prevent spawning items extremely far away
-            if (FVector::DistSquared(OwnerLoc, DropLocation) > FMath::Square(MaxDist))
-            {
-                FVector Dir = (DropLocation - OwnerLoc).GetSafeNormal();
-                DropLocation = OwnerLoc + (Dir * MaxDist);
-            }
-        }
-        Comp->DropItem(SlotIndex, Quantity, DropLocation);
-    }
-}
-
-void UMP_InventoryManager::SetItemLock_Implementation(FName TargetInventoryID, int32 SlotIndex, bool bLocked)
-{
-    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
-    {
-        Comp->SetItemLock(SlotIndex, bLocked);
-    }
-}
-
-void UMP_InventoryManager::ResizeInventory_Implementation(FName TargetInventoryID, int32 NewMaxSlots)
-{
-    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
-    {
-        Comp->ResizeInventory(NewMaxSlots);
-    }
-}
-
-void UMP_InventoryManager::CompactSlots_Implementation(FName TargetInventoryID)
-{
-    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
-    {
-        Comp->CompactSlots();
-    }
-}
-
 void UMP_InventoryManager::TransferItemBySlot_Implementation(FName SourceInventoryID, int32 SourceSlotIndex, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity)
 {
     UMP_InventoryComponent* SourceComp = GetAndValidateComponent(SourceInventoryID);
@@ -350,6 +350,7 @@ void UMP_InventoryManager::TransferItemBySlot_Implementation(FName SourceInvento
             // The slot we took it from might be completely empty now, so we can just add it back.
             // Using AddItemAtSlot ensures it goes right back where it was.
             SourceComp->AddItemAtSlot(SourceItem.ItemID, Quantity, SourceSlotIndex);
+			Client_OnActionNotify(FName(" Failed To Transfer Item"));
         }
     }
 }
@@ -426,12 +427,14 @@ void UMP_InventoryManager::MergeSlotsBetweenInventories_Implementation(FName Sou
         {
             // Failsafe rollback
             TargetComp->AdjustItemQuantity(TargetSlotIndex, -AmountToMove);
+            Client_OnActionNotify(FName(" Failed To Merge Item at slot"));
         }
     }
 }
-void UMP_InventoryManager::LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex)
+
+void UMP_InventoryManager::LootGroundItemByIndex(int32 Index, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity)
 {
-    LootGroundItem(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex);
+    LootGroundItem(GetNearbyLootAt(Index),TargetInventoryID, TargetSlotIndex, Quantity);
 }
 
 void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor, FName TargetInventoryID, int32 TargetSlotIndex, int32 Quantity)
@@ -518,55 +521,73 @@ void UMP_InventoryManager::LootGroundItem_Implementation(AActor* GroundItemActor
             IMP_InventoryPickupInterface::Execute_SetPickupData(GroundItemActor, ItemID, TotalQuantity);
         }
     }
-}
-
-void UMP_InventoryManager::AddNearbyLoot(AActor* LootItem)
-{
-    if (IsValid(LootItem) && !NearbyLoot.Contains(LootItem))
+    else
     {
-        int32 Index = NearbyLoot.Add(LootItem);
-        OnNearbyLootChanged.Broadcast(EInventoryDelta::Added, Index);
+		Client_OnActionNotify(FName("Can't Add Item To Inventory"));
     }
 }
 
-void UMP_InventoryManager::RemoveNearbyLoot(AActor* LootItem)
+
+void UMP_InventoryManager::DropItem_Implementation(FName TargetInventoryID, int32 SlotIndex, int32 Quantity, FVector DropLocation)
 {
-    int32 Index = NearbyLoot.Find(LootItem);
-    if (Index != INDEX_NONE)
+    if (Quantity <= 0) return;
+
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
     {
-        NearbyLoot.RemoveAt(Index);
-        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
+        if (AActor* CompOwner = Comp->GetOwner())
+        {
+            FVector OwnerLoc = CompOwner->GetActorLocation();
+
+            // If the inventory is on a Controller or PlayerState, we need the physical Pawn's location instead
+            if (APlayerController* PC = Cast<APlayerController>(CompOwner))
+            {
+                if (APawn* Pawn = PC->GetPawn())
+                {
+                    OwnerLoc = Pawn->GetActorLocation();
+                }
+            }
+            else if (APlayerState* PS = Cast<APlayerState>(CompOwner))
+            {
+                if (APawn* Pawn = PS->GetPawn())
+                {
+                    OwnerLoc = Pawn->GetActorLocation();
+                }
+            }
+
+            float MaxDist = 500.0f; // Prevent spawning items extremely far away
+            if (FVector::DistSquared(OwnerLoc, DropLocation) > FMath::Square(MaxDist))
+            {
+                FVector Dir = (DropLocation - OwnerLoc).GetSafeNormal();
+                DropLocation = OwnerLoc + (Dir * MaxDist);
+            }
+        }
+        if (!Comp->DropItem(SlotIndex, Quantity, DropLocation))
+        {
+            Client_OnActionNotify(FName("Failed To Drop Items"));
+        }
     }
 }
 
-void UMP_InventoryManager::RemoveNearbyLootByIndex(int32 Index)
+void UMP_InventoryManager::SetItemLock_Implementation(FName TargetInventoryID, int32 SlotIndex, bool bLocked)
 {
-    if (NearbyLoot.IsValidIndex(Index))
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
     {
-        NearbyLoot.RemoveAt(Index);
-        OnNearbyLootChanged.Broadcast(EInventoryDelta::Removed, Index);
+        Comp->SetItemLock(SlotIndex, bLocked);
     }
 }
 
-void UMP_InventoryManager::UpdateNearbyLoot(AActor* LootItem)
+void UMP_InventoryManager::ResizeInventory_Implementation(FName TargetInventoryID, int32 NewMaxSlots)
 {
-    int32 Index = NearbyLoot.Find(LootItem);
-    if (Index != INDEX_NONE)
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
     {
-		OnNearbyLootChanged.Broadcast(EInventoryDelta::Updated, Index);
+        Comp->ResizeInventory(NewMaxSlots);
     }
 }
 
-AActor* UMP_InventoryManager::GetNearbyLootAt(int32 Index) const
+void UMP_InventoryManager::CompactSlots_Implementation(FName TargetInventoryID)
 {
-    if (NearbyLoot.IsValidIndex(Index))
+    if (UMP_InventoryComponent* Comp = GetAndValidateComponent(TargetInventoryID))
     {
-        return NearbyLoot[Index];
+        Comp->CompactSlots();
     }
-    return nullptr;
-}
-
-const TArray<AActor*>& UMP_InventoryManager::GetAllNearbyLoot() const
-{
-    return NearbyLoot;
 }
