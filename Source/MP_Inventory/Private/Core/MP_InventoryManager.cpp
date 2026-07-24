@@ -7,6 +7,8 @@
 #include "MP_Inventory.h"
 #include "Engine/GameInstance.h"
 #include "Net/UnrealNetwork.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 
 UMP_InventoryManager::UMP_InventoryManager()
 {

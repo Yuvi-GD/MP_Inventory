@@ -138,7 +138,7 @@ void UMP_InventoryComponent::GrantAccess(UMP_InventoryManager* Manager)
     if (GetOwner()->HasAuthority() && Manager)
     {
         AccessList.Add(Manager->ManagerID);
-        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *InventoryName.ToString())));
+        Client_OnInventoryAccessUpdate(true, Manager);
     }
 }
 
@@ -146,8 +146,34 @@ void UMP_InventoryComponent::RevokeAccess(UMP_InventoryManager* Manager)
 {
     if (GetOwner()->HasAuthority() && Manager)
     {
-        AccessList.Remove(Manager->ManagerID);
-        Manager->Client_OnActionNotify(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *InventoryName.ToString())));
+        if (AccessList.Remove(Manager->ManagerID))
+        {
+			Client_OnInventoryAccessUpdate(false, Manager);
+        }
+    }
+}
+
+bool UMP_InventoryComponent::HasAccess(UMP_InventoryManager* Manager)
+{
+	if (!Manager) return false;
+
+	if (OwnerID == "Global") return true;
+	else if (OwnerID == Manager->ManagerID) return true;
+    else if (OwnerID == "Private") return AccessList.Contains(Manager->ManagerID);
+
+    return false;
+}
+
+void UMP_InventoryComponent::Client_OnInventoryAccessUpdate_Implementation(bool bHasAccess, UMP_InventoryManager* Manager)
+{
+	OnInventoryAccessUpdate.Broadcast(InventoryID, bHasAccess);
+    if(bHasAccess)
+    {
+		Manager->Client_OnActionNotify_Implementation(FName(*FString::Printf(TEXT("GrantedAccess_%s"), *InventoryName.ToString())));
+    }
+    else
+    {
+		Manager->Client_OnActionNotify_Implementation(FName(*FString::Printf(TEXT("RevokedAccess_%s"), *InventoryName.ToString())));
     }
 }
 

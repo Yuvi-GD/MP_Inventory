@@ -49,6 +49,13 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
     FOnInventoryLoaded OnInventoryLoaded;
 
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryAccessUpdate, FName, InventoryID, bool, bHasAccess);
+    UPROPERTY(BlueprintAssignable, Category = "MP_Inventory|Events")
+	FOnInventoryAccessUpdate OnInventoryAccessUpdate;
+
+    UFUNCTION(Client, Reliable)
+	void Client_OnInventoryAccessUpdate(bool bHasAccess, UMP_InventoryManager* Manager);
+
     /** Sent to the owning client so they know a load occurred and can prep UI. */
     UFUNCTION(Client, Reliable)
     void Client_OnInventoryLoaded();
@@ -95,6 +102,10 @@ public:
     /** Revokes access from a specific Manager. */
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "MP_Inventory|Config")
     void RevokeAccess(UMP_InventoryManager* Manager);
+
+	/** Checks if a specific Manager has access to this inventory. */
+    UFUNCTION(BlueprintCallable, Category = "MP_Inventory|Config")
+    bool HasAccess(UMP_InventoryManager* Manager);
 
     /** Human readable name (e.g., "Backpack") */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MP_Inventory|Config")
